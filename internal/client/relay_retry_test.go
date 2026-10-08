@@ -64,6 +64,7 @@ type relayMember struct {
 }
 
 // open is the provider factory: a member that routes by peer is the server.
+// ai-generated: defer delivery until Connect initializes the transport owner.
 func (r *relayRoom) open(_ context.Context, cfg enginebuiltin.Config) (engine.Session, error) {
 	m := &relayMember{room: r, onData: cfg.OnData, onPeer: cfg.OnPeerData, wake: make(chan struct{}, 1), id: relayClientID}
 	if cfg.OnPeerData != nil {
@@ -72,7 +73,6 @@ func (r *relayRoom) open(_ context.Context, cfg enginebuiltin.Config) (engine.Se
 	r.mu.Lock()
 	r.members = append(r.members, m)
 	r.mu.Unlock()
-	go m.deliver()
 	return m, nil
 }
 
@@ -168,7 +168,11 @@ func (m *relayMember) rejoin(id string) {
 	callback()
 }
 
-func (m *relayMember) Connect(context.Context) error { return nil }
+// ai-generated: start relay delivery in Connect, after server routing is installed.
+func (m *relayMember) Connect(context.Context) error {
+	go m.deliver()
+	return nil
+}
 func (m *relayMember) Send(data []byte) error {
 	m.relay(data, func(string) bool { return true })
 	return nil
