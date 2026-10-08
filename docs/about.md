@@ -1,7 +1,7 @@
 <div align="center">
 
 
-![License](https://img.shields.io/badge/license-WTFPL-0D1117?style=flat-square&logo=open-source-initiative&logoColor=green&labelColor=0D1117)
+[![License](https://img.shields.io/badge/license-Apache--2.0-0D1117?style=flat-square&logo=open-source-initiative&logoColor=green&labelColor=0D1117)](../LICENSE)
 ![Golang](https://img.shields.io/badge/-Golang-0D1117?style=flat-square&logo=go&logoColor=00A7D0)
 
 [RU](about.ru.md) / **EN**
@@ -15,7 +15,7 @@
 `olcRTC` (OpenLibreCommunity RTC) is an encrypted TCP-over-WebRTC tunnel. It disguises traffic as ordinary participation in a WebRTC/SFU service: Jitsi Meet, Yandex Telemost, WbStream or Sber SaluteJazz.
 
 Project: [github.com/ghostlane-project/olcrtc](https://github.com/ghostlane-project/olcrtc), a maintained fork of the archived [openlibrecommunity/olcrtc](https://github.com/openlibrecommunity/olcrtc)  
-License: WTFPL  
+License: [Apache License 2.0](../LICENSE)<br>
 Status: **Beta**
 
 ## Why it is needed
