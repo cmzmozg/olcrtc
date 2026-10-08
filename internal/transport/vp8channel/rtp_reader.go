@@ -131,6 +131,7 @@ func (b *reorderBuffer) drain(deliver func(*rtp.Packet)) {
 	}
 }
 
+// ai-generated: retain only the RTP fields needed for VP8 assembly, without parser-owned slices.
 func (b *reorderBuffer) clone(pkt *rtp.Packet) *rtp.Packet {
 	var clone *rtp.Packet
 	if last := len(b.free) - 1; last >= 0 {
@@ -139,7 +140,7 @@ func (b *reorderBuffer) clone(pkt *rtp.Packet) *rtp.Packet {
 	} else {
 		clone = &rtp.Packet{}
 	}
-	clone.Header = pkt.Header
+	clone.Header = rtp.Header{SequenceNumber: pkt.SequenceNumber, Marker: pkt.Marker}
 	if cap(clone.Payload) < len(pkt.Payload) {
 		clone.Payload = make([]byte, len(pkt.Payload))
 	} else {
@@ -263,9 +264,11 @@ func (p *streamTransport) drainTrack(track *webrtc.TrackRemote) {
 // common.REDPrimary.
 const mimeTypeRED = "video/red"
 
+// ai-generated: reuse the RTP parser and its header extension storage between reads.
 func (p *streamTransport) readVP8Track(track *webrtc.TrackRemote) {
 	red := strings.EqualFold(track.Codec().MimeType, mimeTypeRED)
 	var state vp8FrameState
+	var pkt rtp.Packet
 	reorder := newReorderBuffer()
 	buf := make([]byte, rtpBufSize)
 	var rtpCount, frameCount int
@@ -279,7 +282,6 @@ func (p *streamTransport) readVP8Track(track *webrtc.TrackRemote) {
 		}
 		rtpCount++
 
-		pkt := &rtp.Packet{}
 		if pkt.Unmarshal(buf[:n]) != nil {
 			continue
 		}
@@ -294,7 +296,7 @@ func (p *streamTransport) readVP8Track(track *webrtc.TrackRemote) {
 
 		// Restore sequence order before assembly so SFU reordering is not
 		// mistaken for loss.
-		reorder.push(pkt, func(ordered *rtp.Packet) {
+		reorder.push(&pkt, func(ordered *rtp.Packet) {
 			frame := state.processRTPPacket(ordered)
 			if frame == nil {
 				return
