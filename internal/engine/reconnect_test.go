@@ -31,6 +31,78 @@ func TestReconnectorRequestWindowReset(t *testing.T) {
 	}
 }
 
+// ai-generated: the three stable-rejoin tests below.
+func TestReconnectorStableRejoinResetsRequestBudget(t *testing.T) {
+	now := time.Date(2026, time.October, 8, 12, 0, 0, 0, time.UTC)
+	var calls atomic.Int32
+	r := NewReconnector(ReconnectorConfig{
+		MaxAttempts: 2,
+		Reconnect: func(context.Context) error {
+			calls.Add(1)
+			return nil
+		},
+	})
+	r.now = func() time.Time { return now }
+	r.count = 2
+	r.lastRequest = now.Add(-2 * time.Minute)
+	r.lastSuccess = now.Add(-reconnectStableAfter - time.Second)
+
+	if terminal := r.handleAttempt(t.Context(), nil); terminal {
+		t.Fatal("a drop after a stable rejoin ended the session")
+	}
+	if calls.Load() != 1 || r.count != 1 {
+		t.Fatalf("calls=%d count=%d, want 1/1", calls.Load(), r.count)
+	}
+}
+
+func TestReconnectorFlappingRejoinsStillReachLimit(t *testing.T) {
+	now := time.Date(2026, time.October, 8, 12, 0, 0, 0, time.UTC)
+	ended := ""
+	r := NewReconnector(ReconnectorConfig{
+		MaxAttempts: 2,
+		Reconnect: func(context.Context) error {
+			t.Fatal("reconnect called after limit")
+			return nil
+		},
+		OnLimit:     func(reason string) { ended = reason },
+		LimitReason: "limit",
+	})
+	r.now = func() time.Time { return now }
+	r.count = 2
+	r.lastRequest = now.Add(-10 * time.Second)
+	r.lastSuccess = now.Add(-10 * time.Second)
+
+	if terminal := r.handleAttempt(t.Context(), nil); !terminal || ended == "" {
+		t.Fatalf("terminal=%v ended=%q, want the limit", terminal, ended)
+	}
+}
+
+func TestReconnectorDeadServiceAfterStableRejoinReachesLimit(t *testing.T) {
+	now := time.Date(2026, time.October, 8, 12, 0, 0, 0, time.UTC)
+	var calls atomic.Int32
+	ended := ""
+	r := NewReconnector(ReconnectorConfig{
+		MaxAttempts: 1,
+		Reconnect: func(context.Context) error {
+			calls.Add(1)
+			return errors.New("sfu down")
+		},
+		OnLimit:     func(reason string) { ended = reason },
+		LimitReason: "limit",
+	})
+	r.now = func() time.Time { return now }
+	r.count = 1
+	r.lastRequest = now.Add(-2 * time.Minute)
+	r.lastSuccess = now.Add(-reconnectStableAfter - time.Second)
+
+	if terminal := r.handleAttempt(t.Context(), nil); !terminal || ended == "" {
+		t.Fatalf("terminal=%v ended=%q, want the limit", terminal, ended)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("calls=%d, want 1: the success mark must be spent once", calls.Load())
+	}
+}
+
 func TestReconnectorFailureWindowReset(t *testing.T) {
 	now := time.Date(2026, time.August, 11, 12, 0, 0, 0, time.UTC)
 	r := NewReconnector(ReconnectorConfig{

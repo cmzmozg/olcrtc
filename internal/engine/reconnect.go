@@ -14,6 +14,12 @@ const (
 	reconnectFailureWindow = 5 * time.Minute
 	reconnectBackoffStep   = 2 * time.Second
 	reconnectBackoffMax    = 30 * time.Second
+	// ai-generated: reconnectStableAfter and this comment.
+	// reconnectStableAfter is how long a rejoin must have held before the
+	// next request starts a fresh budget: a path that drops every few
+	// minutes is not a dead SFU, and counting its successful rejoins towards
+	// the limit ended the session on the eleventh drop.
+	reconnectStableAfter = time.Minute
 
 	// noRouteProbeInitial and noRouteProbeMax pace the probe socket while
 	// the host refuses sockets (awaitRoute). noRouteMaxWait bounds the wait,
@@ -80,6 +86,7 @@ type Reconnector struct {
 	count       int
 	windowStart time.Time
 	lastRequest time.Time
+	lastSuccess time.Time
 	now         func() time.Time
 }
 
@@ -197,6 +204,7 @@ func (r *Reconnector) handleRequestAttempt(ctx context.Context, done <-chan stru
 		seen := r.queued.Load()
 		err := r.reconnect(ctx)
 		if err == nil {
+			r.markSuccess()
 			r.dropRequestsOlderThan(seen)
 			return false
 		}
@@ -272,12 +280,24 @@ func (r *Reconnector) nextRequestCount() int {
 	r.counterMu.Lock()
 	defer r.counterMu.Unlock()
 	now := r.currentTime()
-	if r.lastRequest.IsZero() || now.Sub(r.lastRequest) > reconnectFailureWindow {
+	// ai-generated: the stable-rejoin reset. The success mark is spent here,
+	// so the failed attempts that follow it still add up to the limit.
+	stable := !r.lastSuccess.IsZero() && now.Sub(r.lastSuccess) > reconnectStableAfter
+	if r.lastRequest.IsZero() || now.Sub(r.lastRequest) > reconnectFailureWindow || stable {
 		r.count = 0
+		r.lastSuccess = time.Time{}
 	}
 	r.count++
 	r.lastRequest = now
 	return r.count
+}
+
+// markSuccess records when a requested rejoin came back up.
+// ai-generated: markSuccess.
+func (r *Reconnector) markSuccess() {
+	r.counterMu.Lock()
+	r.lastSuccess = r.currentTime()
+	r.counterMu.Unlock()
 }
 
 func (r *Reconnector) failureCount() int {
