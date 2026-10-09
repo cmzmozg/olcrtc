@@ -336,7 +336,7 @@ func (l *dataLane) send(p *streamTransport, now int64, write func([]byte) bool) 
 		l.batchBuf = sample[:0]
 	} else {
 		sample = frame.data
-		defer frame.release()
+		defer frame.releaseSent()
 	}
 	if write(sample) && l.notePushes(sample) && l.pushSince == 0 {
 		l.pushSince = now

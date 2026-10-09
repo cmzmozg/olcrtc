@@ -105,6 +105,12 @@ type kcpConn struct {
 	queuedMu sync.Mutex
 	queuedSN map[uint32]queuedPush
 	spurious atomic.Uint64
+	// sentAt is when each push last went out in a sample, and pathRTT and
+	// pathVar the round trip from there to its acknowledgement, which is
+	// what a resend has to wait out. ai-generated: post-send resend veto.
+	sentAt  map[uint32]int64
+	pathRTT int64
+	pathVar int64
 
 	mu        sync.Mutex
 	rDeadline time.Time
@@ -174,6 +180,15 @@ func (p *packetBuffer) release() {
 	pool.Put(p)
 }
 
+// releaseSent releases a packet that went out in a sample, noting when its
+// pushes left. ai-generated: post-send resend veto.
+func (p *packetBuffer) releaseSent() {
+	if p != nil && p.owner != nil {
+		p.owner.markSent(p.sns)
+	}
+	p.release()
+}
+
 // setHeader re-points the outgoing frame header (used to update the dst epoch
 // after the peer is latched). Safe for concurrent use with WriteTo.
 func (c *kcpConn) setHeader(hdr [epochHdrLen]byte) {
@@ -218,6 +233,8 @@ func (c *kcpConn) deliver(payload []byte) {
 	if answers(body) { // ai-generated: issue #12
 		c.lastAck.Store(monoNow())
 	}
+	// ai-generated: post-send resend veto.
+	c.noteAcks(body)
 	if st := stampsOf(body); st.acked { // ai-generated: issue #12
 		c.delivery.count(st.ack, 0, 1, 0)
 	}
@@ -423,6 +440,11 @@ const (
 	// it a resend goes through, so a packet that somehow never left the
 	// queue cannot silence its segment for good.
 	queuedHold = 2 * time.Second
+	// sentHold caps how long a push that went out keeps its resends off the
+	// wire, and sentAtMax how many send times a conn keeps before it drops
+	// the old ones.
+	sentHold  = 1500 * time.Millisecond
+	sentAtMax = 8192
 )
 
 // queuedPush is how many copies of a push wait in out, and since when.
@@ -439,7 +461,7 @@ type queuedPush struct {
 func (c *kcpConn) queuedDuplicate(p []byte) bool {
 	c.queuedMu.Lock()
 	defer c.queuedMu.Unlock()
-	if len(c.queuedSN) == 0 {
+	if len(c.queuedSN) == 0 && len(c.sentAt) == 0 {
 		return false
 	}
 	now := monoNow()
@@ -450,8 +472,7 @@ func (c *kcpConn) queuedDuplicate(p []byte) bool {
 		if p[kcpCmdOff] != kcp.IKCP_CMD_PUSH || uint64(size) > uint64(len(rest)) {
 			return false
 		}
-		q, ok := c.queuedSN[binary.LittleEndian.Uint32(p[kcpSnOff:])]
-		if !ok || now-q.at >= int64(queuedHold) {
+		if !c.inFlight(binary.LittleEndian.Uint32(p[kcpSnOff:]), now) {
 			return false
 		}
 		found = true
@@ -484,6 +505,80 @@ func (c *kcpConn) track(packet *packetBuffer, p []byte) {
 	if len(packet.sns) > 0 {
 		packet.owner = c
 	}
+}
+
+// inFlight reports whether a push's earlier copy still waits in out, or went
+// out less than a round trip ago as this path measures it from the send.
+// KCP times a resend from when it handed the segment over, so a segment that
+// waited for its frame comes due before its acknowledgement can be back: on
+// a real path a third of what arrived at the far end was such a duplicate.
+// The caller holds queuedMu. ai-generated: post-send resend veto.
+func (c *kcpConn) inFlight(sn uint32, now int64) bool {
+	if q, ok := c.queuedSN[sn]; ok && now-q.at < int64(queuedHold) {
+		return true
+	}
+	at, ok := c.sentAt[sn]
+	return ok && c.pathRTT > 0 && now-at < min(c.pathRTT+4*c.pathVar, int64(sentHold))
+}
+
+// markSent notes when pushes went out in a sample, dropping send times older
+// than sentHold once there are sentAtMax of them.
+// ai-generated: post-send resend veto.
+func (c *kcpConn) markSent(sns []uint32) {
+	now := monoNow()
+	c.queuedMu.Lock()
+	defer c.queuedMu.Unlock()
+	if c.sentAt == nil {
+		c.sentAt = make(map[uint32]int64)
+	}
+	if len(c.sentAt) >= sentAtMax {
+		for sn, at := range c.sentAt {
+			if now-at >= int64(sentHold) {
+				delete(c.sentAt, sn)
+			}
+		}
+	}
+	for _, sn := range sns {
+		c.sentAt[sn] = now
+	}
+}
+
+// noteAcks takes a round trip sample from each acknowledgement in body whose
+// push this conn sent. ai-generated: post-send resend veto.
+func (c *kcpConn) noteAcks(body []byte) {
+	now := monoNow()
+	c.queuedMu.Lock()
+	defer c.queuedMu.Unlock()
+	if len(c.sentAt) == 0 {
+		return
+	}
+	for len(body) >= kcp.IKCP_OVERHEAD {
+		size := binary.LittleEndian.Uint32(body[kcpLenOff:])
+		rest := body[kcp.IKCP_OVERHEAD:]
+		if uint64(size) > uint64(len(rest)) {
+			return
+		}
+		if body[kcpCmdOff] == kcp.IKCP_CMD_ACK {
+			sn := binary.LittleEndian.Uint32(body[kcpSnOff:])
+			if at, ok := c.sentAt[sn]; ok {
+				delete(c.sentAt, sn)
+				c.sampleRTT(now - at)
+			}
+		}
+		body = rest[size:]
+	}
+}
+
+// sampleRTT folds one round trip into pathRTT and pathVar the way KCP folds
+// its own. ai-generated: post-send resend veto.
+func (c *kcpConn) sampleRTT(rtt int64) {
+	if c.pathRTT == 0 {
+		c.pathRTT, c.pathVar = rtt, rtt/2
+		return
+	}
+	delta := rtt - c.pathRTT
+	c.pathRTT += delta / 8
+	c.pathVar += (max(delta, -delta) - c.pathVar) / 4
 }
 
 // untrack forgets the pushes of a packet that left the queue.

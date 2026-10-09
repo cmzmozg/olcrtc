@@ -362,7 +362,7 @@ func (p *streamTransport) batchSampleUpTo(
 	sample = append(sample, first.data[:epochHdrLen]...)
 	sample = append(sample, kcpBatchMagic[:]...)
 	sample = appendBatchPacket(sample, first.data[epochHdrLen:])
-	first.release()
+	first.releaseSent()
 
 	for packets := 1; packets < limit; packets++ {
 		select {
@@ -379,7 +379,7 @@ func (p *streamTransport) batchSampleUpTo(
 				return sample, frame
 			}
 			sample = appendBatchPacket(sample, payload)
-			frame.release()
+			frame.releaseSent()
 		default:
 			return sample, nil
 		}

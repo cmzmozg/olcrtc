@@ -3,6 +3,7 @@ package vp8channel
 import (
 	"encoding/binary"
 	"testing"
+	"time"
 
 	kcp "github.com/xtaci/kcp-go/v5"
 )
@@ -70,5 +71,49 @@ func TestQueuedDuplicateExpires(t *testing.T) {
 	c.queuedSN[3] = queuedPush{n: 1, at: monoNow() - int64(queuedHold)}
 	if c.queuedDuplicate(seg) {
 		t.Fatal("a push stuck past queuedHold still silenced its resend")
+	}
+}
+
+// ai-generated: tests for the post-send resend veto.
+func ackSegment(sn uint32) []byte {
+	seg := make([]byte, kcp.IKCP_OVERHEAD)
+	seg[kcpCmdOff] = kcp.IKCP_CMD_ACK
+	binary.LittleEndian.PutUint32(seg[kcpSnOff:], sn)
+	return seg
+}
+
+func TestResendWaitsOutTheMeasuredPath(t *testing.T) {
+	c := &kcpConn{}
+	seg := pushSegment(9, 8)
+	sent := &packetBuffer{}
+	c.track(sent, seg)
+	sent.releaseSent()
+	if c.queuedDuplicate(seg) {
+		t.Fatal("a resend was held back before the path had a single sample")
+	}
+	c.noteAcks(ackSegment(9))
+	if c.pathRTT <= 0 {
+		t.Fatal("the acknowledgement left no round trip sample")
+	}
+	c.pathRTT, c.pathVar = int64(200*time.Millisecond), int64(10*time.Millisecond)
+	again := &packetBuffer{}
+	c.track(again, seg)
+	again.releaseSent()
+	if !c.queuedDuplicate(seg) {
+		t.Fatal("a resend went out before a round trip had passed since the send")
+	}
+	c.sentAt[9] = monoNow() - int64(300*time.Millisecond)
+	if c.queuedDuplicate(seg) {
+		t.Fatal("a resend was still held back after the round trip passed")
+	}
+}
+
+func TestResendVetoIsCappedBySentHold(t *testing.T) {
+	c := &kcpConn{}
+	c.markSent([]uint32{4})
+	c.pathRTT, c.pathVar = int64(10*time.Second), int64(time.Second)
+	c.sentAt[4] = monoNow() - int64(sentHold)
+	if c.queuedDuplicate(pushSegment(4, 8)) {
+		t.Fatal("a slow path held a resend back past sentHold")
 	}
 }
