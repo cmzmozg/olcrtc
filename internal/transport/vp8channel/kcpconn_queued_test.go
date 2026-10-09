@@ -157,3 +157,16 @@ func TestParkedResendIsDroppedWhenItsPushIsAcknowledged(t *testing.T) {
 		t.Fatalf("out=%d parked=%d, want the acknowledged resend dropped", len(c.out), len(c.parked))
 	}
 }
+
+// ai-generated: a resent push's acknowledgement is timed from its first send.
+func TestAResentPushIsTimedFromItsFirstSend(t *testing.T) {
+	c := &kcpConn{}
+	c.markSent([]uint32{30})
+	time.Sleep(20 * time.Millisecond)
+	c.markSent([]uint32{30}) // the resend went out too
+	c.noteAcks(ackSegment(30))
+	if c.pathRTT < int64(20*time.Millisecond) || c.ackedSent != 0 || len(c.firstAt) != 0 {
+		t.Fatalf("pathRTT=%s ackedSent=%d firstAt=%d, want the sample from the first send and no loss evidence",
+			time.Duration(c.pathRTT), c.ackedSent, len(c.firstAt))
+	}
+}
