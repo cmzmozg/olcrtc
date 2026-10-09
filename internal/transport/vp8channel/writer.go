@@ -34,7 +34,8 @@ func newWriterState(p *streamTransport) *writerState {
 		keepaliveEvery:      max(int(keepaliveIdlePeriod/p.frameInterval), 1),
 		forceKeepaliveEvery: max(int(forceKeepalivePeriod/p.frameInterval), 1),
 		data: dataLane{
-			out: p.data.out, acks: p.data.acks, conn: p.dataConn, window: p.dataWindow, name: "data",
+			out: p.data.out, acks: p.data.acks, conn: p.dataConn, window: p.dataWindow, srtt: p.dataSRTT,
+			name: "data",
 		},
 	}
 }
@@ -239,6 +240,16 @@ func (p *streamTransport) dataWindow(segments int) {
 	if rt := p.data.get(); rt != nil {
 		rt.sess.SetWindowSize(segments, 0)
 	}
+}
+
+// dataSRTT reads the single-peer data plane's smoothed round trip in ms.
+//
+// ai-generated: the whole function.
+func (p *streamTransport) dataSRTT() int32 {
+	if rt := p.data.get(); rt != nil {
+		return rt.sess.GetSRTT()
+	}
+	return 0
 }
 
 func (p *streamTransport) writerLoop() {

@@ -47,6 +47,15 @@ const (
 	// minCapWindow is the fewest segments a capped lane lets KCP keep in
 	// flight.
 	minCapWindow = 32
+	// ai-generated: adaptEvery, adaptFloor and their comment.
+	// An uncapped lane's KCP send window is twice what the path carried in
+	// its shortest round trip, resized every adaptEvery and never below
+	// adaptFloor. Without congestion control KCP fills whatever window it
+	// has, and everything in it queues ahead of the next stream's first
+	// bytes: 4096 segments at ~1.3 MB/s kept a small request behind a long
+	// download for 2.7 s on a 250 ms path, 512 for 0.7 s at the same rate.
+	adaptEvery = time.Second
+	adaptFloor = 512
 
 	// The KCP segment header as kcp-go lays it out: conv, cmd, frg, wnd,
 	// ts, sn, una, len, little-endian.
@@ -77,6 +86,12 @@ type dataLane struct {
 	conn func() *kcpConn
 	// window sets the send window of the queue's KCP session, in segments.
 	window func(segments int)
+	// srtt reads the session's smoothed round trip in milliseconds; nil
+	// leaves the window to the caps. ai-generated: srtt and the adapt state.
+	srtt      func() int32
+	minRTT    int32
+	adapted   int
+	adaptedAt int64
 	// name tells the lane apart in the log.
 	name string
 
@@ -119,6 +134,7 @@ func (l *dataLane) flush(p *streamTransport, write func([]byte) bool) bool {
 	case l.pace.grow(now, cmp.Or(p.growEvery, defaultGrowEvery), p.fullRate()):
 		l.resize(p)
 	}
+	l.adapt(p, now)
 	acked := l.sendAcks(p, write)
 	sent := l.send(p, now, write)
 	if l.seen != nil {
@@ -176,6 +192,7 @@ func (l *dataLane) watch(p *streamTransport, now int64) bool {
 			l.seen.hold(0)
 		}
 		l.seen, l.pushSince, l.darkSince, l.pace, l.frames = conn, 0, 0, pace{}, frameCap{}
+		l.minRTT, l.adapted, l.adaptedAt = 0, 0, 0
 	}
 	if conn == nil {
 		return false
@@ -227,6 +244,7 @@ func (l *dataLane) resize(p *streamTransport) {
 	if l.window == nil {
 		return
 	}
+	l.adapted = 0 // ai-generated: adapt resizes again once the caps lift.
 	segments := p.sendWindow
 	rate := l.pace.rate
 	if l.frames.limit > 0 {
@@ -239,6 +257,30 @@ func (l *dataLane) resize(p *streamTransport) {
 		segments = min(max(int(rate*capQueue.Seconds())/kcpMTU, minCapWindow), segments)
 	}
 	l.window(segments)
+}
+
+// adapt sizes an uncapped lane's send window to twice what it wrote over the
+// shortest round trip its session has seen, between adaptFloor and the
+// transport's window; a capped or dark lane keeps what resize gave it.
+//
+// ai-generated: the whole function.
+func (l *dataLane) adapt(p *streamTransport, now int64) {
+	if l.srtt == nil || l.window == nil || l.seen == nil || now-l.adaptedAt < int64(adaptEvery) {
+		return
+	}
+	l.adaptedAt = now
+	if rtt := l.srtt(); rtt > 0 && (l.minRTT == 0 || rtt < l.minRTT) {
+		l.minRTT = rtt
+	}
+	if l.minRTT == 0 || l.darkSince != 0 || l.pace.rate > 0 || l.frames.limit > 0 {
+		return
+	}
+	bdp := l.pace.sentRate(now) * float64(l.minRTT) / 1000
+	segments := min(max(int(2*bdp)/kcpMTU, adaptFloor), p.sendWindow)
+	if segments != l.adapted {
+		l.adapted = segments
+		l.window(segments)
+	}
 }
 
 // fullRate is the most a data lane writes per second uncapped: a full sample

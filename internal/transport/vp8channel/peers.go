@@ -397,6 +397,7 @@ func (p *streamTransport) peerSessionFor(epoch uint32) *peerSession {
 		acks:   acks,
 		conn:   func() *kcpConn { return data.conn },
 		window: func(segments int) { data.sess.SetWindowSize(segments, 0) },
+		srtt:   data.sess.GetSRTT, // ai-generated: the adaptive window.
 		name:   "peer " + peerID,
 	}, sess.done)
 
