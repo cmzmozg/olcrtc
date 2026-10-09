@@ -426,13 +426,8 @@ func (s *Session) run(gen *generation, connection notification) {
 					gen.subscribeAll()
 				}
 			case "producer-updated":
-				if note.Description == "" || note.SessionID == gen.sessionID {
-					continue
-				}
-				gen.sessionID = note.SessionID
-				if err := s.reanswer(gen, note.Description); err != nil {
-					logger.Debugf("vkcalls: renegotiation: %v", err)
-					s.reconnectAttempt(gen)
+				if s.producerUpdated(gen, note) {
+					return
 				}
 			case "hungup":
 				if id, err := decimalID(note.ParticipantID); err == nil {
@@ -446,6 +441,40 @@ func (s *Session) run(gen *generation, connection notification) {
 			return
 		}
 	}
+}
+
+// producerUpdated answers a renegotiation offer, and reports whether it asked
+// for a rejoin instead, which ends this generation's run loop.
+//
+// ai-generated: split out of run, with the ICE restart rejoin. After an ICE
+// restart the SFU sent media under SSRCs the reanswered session never bound
+// to tracks, re-offered every 15-20 s, and the room stayed dark until a
+// restart (2026-10-09); a rejoin builds the session as the first join does.
+func (s *Session) producerUpdated(gen *generation, note notification) bool {
+	if note.Description == "" || note.SessionID == gen.sessionID {
+		return false
+	}
+	gen.sessionID = note.SessionID
+	if rd := gen.pc.RemoteDescription(); rd != nil && iceRestarted(rd.SDP, note.Description) {
+		logger.Infof("vkcalls: the SFU restarted ICE, rejoining the room")
+		s.reconnectAttempt(gen)
+		return true
+	}
+	if err := s.reanswer(gen, note.Description); err != nil {
+		logger.Debugf("vkcalls: renegotiation: %v", err)
+		s.reconnectAttempt(gen)
+	}
+	return false
+}
+
+// iceRestarted reports whether offer carries other ICE credentials than the
+// remote description in force: a restart, not a change of the media.
+//
+// ai-generated: the whole function.
+func iceRestarted(current, offer string) bool {
+	was := iceUfragLine.FindStringSubmatch(strings.ReplaceAll(current, "\r\n", "\n"))
+	now := iceUfragLine.FindStringSubmatch(strings.ReplaceAll(offer, "\r\n", "\n"))
+	return len(was) == 2 && len(now) == 2 && was[1] != now[1]
 }
 
 // reanswer handles a renegotiation offer on the established transport: same
