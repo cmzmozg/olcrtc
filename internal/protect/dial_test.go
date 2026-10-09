@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/http"
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 )
 
 // staticLookup answers every host with fixed addresses.
@@ -69,6 +71,41 @@ func TestNoRouteIsRetriable(t *testing.T) {
 		if !isRetriableError(&net.OpError{Op: "dial", Err: &net.OpError{Op: "connect", Err: errno}}) {
 			t.Fatalf("%v is not retriable", errno)
 		}
+	}
+}
+
+// ai-generated: a TLS handshake that times out never wrote the request.
+func TestTLSHandshakeTimeoutIsRetriable(t *testing.T) {
+	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ln.Close() }()
+	go func() {
+		for {
+			conn, acceptErr := ln.Accept()
+			if acceptErr != nil {
+				return
+			}
+			go func() { // never answers the ClientHello
+				time.Sleep(time.Second)
+				_ = conn.Close()
+			}()
+		}
+	}()
+	tr := &http.Transport{TLSHandshakeTimeout: 50 * time.Millisecond}
+	defer tr.CloseIdleConnections()
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost,
+		"https://"+ln.Addr().String()+"/", strings.NewReader("x"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := tr.RoundTrip(req)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil || !isRetriableError(err) {
+		t.Fatalf("error %v is not retriable", err)
 	}
 }
 

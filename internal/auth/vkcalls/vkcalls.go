@@ -48,8 +48,10 @@ const (
 	stagePreview   = "messages.getCallPreview"
 	stageAnonToken = "auth.getAnonymToken"
 	requestLimit   = 8 << 20
-	requestWait    = 20 * time.Second
-	schemaVersion  = "1"
+	// requestWait bounds the whole guest chain. It leaves room for one TLS
+	// handshake that times out (10 s) and its retry. ai-generated: 20 -> 30 s.
+	requestWait   = 30 * time.Second
+	schemaVersion = "1"
 )
 
 // ErrCreationUnknown reports that calls.start produced no definitive answer:

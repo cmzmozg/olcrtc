@@ -210,9 +210,13 @@ func isRetriableError(err error) bool {
 		return opErr.Timeout() || strings.Contains(opErr.Error(), "connection refused")
 	}
 	s := err.Error()
+	// ai-generated: a TLS handshake that timed out never wrote the request,
+	// so a POST is as safe to replay as a GET; it ended a VK Calls join on
+	// the first try in 3 of 14 joins from a desktop on 2026-10-09.
 	return strings.Contains(s, "no such host") ||
 		strings.Contains(s, "connection reset") ||
-		strings.Contains(s, "i/o timeout")
+		strings.Contains(s, "i/o timeout") ||
+		strings.Contains(s, "TLS handshake timeout")
 }
 
 // NewWebSocketDialer returns a WebSocket dialer using protected sockets and shared TLS policy.
