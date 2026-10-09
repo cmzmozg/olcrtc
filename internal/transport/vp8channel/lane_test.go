@@ -223,11 +223,19 @@ func waitFor(t *testing.T, timeout time.Duration, what string, cond func() bool)
 
 // kcpSegments builds a KCP packet of the given commands, each with body as
 // its data.
+// testPushSN numbers the pushes kcpSegments builds: KCP never sends two
+// different pushes under one sequence number, and the conn takes a repeat of
+// a queued one for a resend. ai-generated: testPushSN.
+var testPushSN atomic.Uint32
+
 func kcpSegments(body []byte, cmds ...byte) []byte {
 	var packet []byte
 	for _, cmd := range cmds {
 		hdr := make([]byte, kcp.IKCP_OVERHEAD)
 		hdr[kcpCmdOff] = cmd
+		if cmd == kcp.IKCP_CMD_PUSH {
+			binary.LittleEndian.PutUint32(hdr[kcpSnOff:], testPushSN.Add(1))
+		}
 		binary.LittleEndian.PutUint32(hdr[kcpLenOff:], uint32(len(body))) //nolint:gosec // test body
 		packet = append(append(packet, hdr...), body...)
 	}

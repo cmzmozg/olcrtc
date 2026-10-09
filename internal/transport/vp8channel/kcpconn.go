@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	kcp "github.com/xtaci/kcp-go/v5"
+
 	"github.com/openlibrecommunity/olcrtc/internal/logger"
 )
 
@@ -97,6 +99,13 @@ type kcpConn struct {
 	// ai-generated: issue #12.
 	delivery deliveryTrack
 
+	// queuedMu guards queuedSN, the pushes waiting in out by sequence number.
+	// spurious counts packets queuedDuplicate kept out of the queue.
+	// ai-generated: spurious RTO retransmissions.
+	queuedMu sync.Mutex
+	queuedSN map[uint32]queuedPush
+	spurious atomic.Uint64
+
 	mu        sync.Mutex
 	rDeadline time.Time
 	wDeadline time.Time
@@ -109,6 +118,11 @@ type packetBuffer struct {
 	// the inbound side. ai-generated: issue #12, a capped lane drops pushes
 	// that waited too long.
 	queued int64
+	// owner and sns are the conn and the push sequence numbers this packet
+	// holds in its queue, cleared on release. ai-generated: spurious RTO
+	// retransmissions, see queuedDuplicate.
+	owner *kcpConn
+	sns   []uint32
 }
 
 func packetBufferClass(size int) (int, int, bool) {
@@ -144,7 +158,14 @@ func acquirePacketBuffer(pools *[4]sync.Pool, size int) *packetBuffer {
 }
 
 func (p *packetBuffer) release() {
-	if p == nil || p.pool == nil {
+	if p == nil {
+		return
+	}
+	if p.owner != nil { // ai-generated: the pushes leave the queue with the packet.
+		p.owner.untrack(p.sns)
+		p.owner, p.sns = nil, p.sns[:0]
+	}
+	if p.pool == nil {
 		return
 	}
 	pool := p.pool
@@ -353,6 +374,10 @@ func (c *kcpConn) wrap(p []byte) *packetBuffer {
 
 // enqueue wraps a KCP packet for the wire and queues it for the lane.
 func (c *kcpConn) enqueue(p []byte) (int, error) {
+	if c.queuedDuplicate(p) { // ai-generated: spurious RTO retransmissions.
+		c.spurious.Add(1)
+		return len(p), nil
+	}
 	packet := c.wrap(p)
 	if c.acks != nil && answers(p) && !pushes(p) { // ai-generated: issue #12
 		select {
@@ -377,6 +402,7 @@ func (c *kcpConn) enqueue(p []byte) (int, error) {
 		timerC = t.C
 	}
 
+	c.track(packet, p)
 	select {
 	case c.out <- packet:
 		return len(p), nil
@@ -386,6 +412,90 @@ func (c *kcpConn) enqueue(p []byte) (int, error) {
 	case <-timerC:
 		packet.release()
 		return 0, TimeoutError{}
+	}
+}
+
+// ai-generated: spurious RTO retransmission suppression (queuedDuplicate,
+// track, untrack and their constants).
+const (
+	kcpSnOff = 12
+	// queuedHold bounds how long a queued push keeps its resends out: past
+	// it a resend goes through, so a packet that somehow never left the
+	// queue cannot silence its segment for good.
+	queuedHold = 2 * time.Second
+)
+
+// queuedPush is how many copies of a push wait in out, and since when.
+type queuedPush struct {
+	n  int32
+	at int64
+}
+
+// queuedDuplicate reports whether p is only pushes whose earlier copies still
+// wait in out. KCP stamps a resend deadline when it hands a segment over, but
+// the paced writer drains a batch a frame, so the tail of a window burst can
+// outwait its RTO in this queue; queueing the resend as well only doubles the
+// wait and the wire cost of what is already on its way.
+func (c *kcpConn) queuedDuplicate(p []byte) bool {
+	c.queuedMu.Lock()
+	defer c.queuedMu.Unlock()
+	if len(c.queuedSN) == 0 {
+		return false
+	}
+	now := monoNow()
+	found := false
+	for len(p) >= kcp.IKCP_OVERHEAD {
+		size := binary.LittleEndian.Uint32(p[kcpLenOff:])
+		rest := p[kcp.IKCP_OVERHEAD:]
+		if p[kcpCmdOff] != kcp.IKCP_CMD_PUSH || uint64(size) > uint64(len(rest)) {
+			return false
+		}
+		q, ok := c.queuedSN[binary.LittleEndian.Uint32(p[kcpSnOff:])]
+		if !ok || now-q.at >= int64(queuedHold) {
+			return false
+		}
+		found = true
+		p = rest[size:]
+	}
+	return found && len(p) == 0
+}
+
+// track records the pushes a queued packet carries.
+func (c *kcpConn) track(packet *packetBuffer, p []byte) {
+	now := monoNow()
+	c.queuedMu.Lock()
+	defer c.queuedMu.Unlock()
+	for len(p) >= kcp.IKCP_OVERHEAD {
+		size := binary.LittleEndian.Uint32(p[kcpLenOff:])
+		rest := p[kcp.IKCP_OVERHEAD:]
+		if uint64(size) > uint64(len(rest)) {
+			break
+		}
+		if p[kcpCmdOff] == kcp.IKCP_CMD_PUSH {
+			if c.queuedSN == nil {
+				c.queuedSN = make(map[uint32]queuedPush)
+			}
+			sn := binary.LittleEndian.Uint32(p[kcpSnOff:])
+			c.queuedSN[sn] = queuedPush{n: c.queuedSN[sn].n + 1, at: now}
+			packet.sns = append(packet.sns, sn)
+		}
+		p = rest[size:]
+	}
+	if len(packet.sns) > 0 {
+		packet.owner = c
+	}
+}
+
+// untrack forgets the pushes of a packet that left the queue.
+func (c *kcpConn) untrack(sns []uint32) {
+	c.queuedMu.Lock()
+	defer c.queuedMu.Unlock()
+	for _, sn := range sns {
+		if q := c.queuedSN[sn]; q.n > 1 {
+			c.queuedSN[sn] = queuedPush{n: q.n - 1, at: q.at}
+		} else {
+			delete(c.queuedSN, sn)
+		}
 	}
 }
 
