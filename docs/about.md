@@ -132,11 +132,13 @@ Within version 5 a sender may keep several messages in flight at once. A hello a
 `smux` runs on top of the encrypted `muxconn`. The first smux stream is occupied by the handshake and the control protocol:
 
 ```text
-CLIENT_HELLO(challenge) -> SERVER_WELCOME(challenge, authenticated peer ID)
+CLIENT_HELLO(challenge) -> SERVER_WELCOME(challenge, authenticated peer ID, features)
 CONTROL_PING <-> CONTROL_PONG
 ```
 
 If the control pong does not arrive several times in a row, the runtime rebuilds the smux session or hands control to the failover supervisor.
+
+Every TCP connection runs on its own smux stream: the client writes a JSON `connect` request, the server dials the target and answers with a one-byte ack. When `SERVER_WELCOME` announces `early-data`, the client does not wait for the ack: it answers the app with success at once, and the connection's first bytes (a TLS ClientHello, say) follow the request on the stream. The server forwards them to the target once connected, and the client reads the ack as the first byte of the reply; a refusal closes the connection. A new connection saves one tunnel round trip this way. IPv6 literals still wait for the ack, so a refusal reaches the app as a SOCKS reply. An old server announces nothing, and a new client talks to it as before.
 
 ## YAML
 

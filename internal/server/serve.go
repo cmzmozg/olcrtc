@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -164,7 +165,7 @@ func (s *Server) answerHello(
 			return nil, handshakeResult{}, false
 		}
 		_ = stream.SetDeadline(time.Now().Add(handshake.DefaultTimeout))
-		hello, sessionID, err := handshake.Server(stream, s.authHook, s.localPeerID())
+		hello, sessionID, err := handshake.Server(stream, s.authHook, s.localPeerID(), handshake.FeatureEarlyData)
 		_ = stream.SetDeadline(time.Time{})
 		if err != nil {
 			_ = stream.Close()
@@ -235,9 +236,9 @@ func (s *Server) handleStream(ctx context.Context, stream *smux.Stream, sessionI
 		n, err := stream.Read(buffer)
 		if n > 0 {
 			header = append(header, buffer[:n]...)
-			if request, ok := parseConnectRequest(header); ok {
+			if request, early, ok := parseConnectRequest(header); ok {
 				_ = stream.SetReadDeadline(time.Time{})
-				s.dispatch(ctx, stream, request, sessionID)
+				s.dispatch(ctx, stream, request, sessionID, early)
 				return
 			}
 		}
@@ -247,12 +248,18 @@ func (s *Server) handleStream(ctx context.Context, stream *smux.Stream, sessionI
 	}
 }
 
-func parseConnectRequest(buffer []byte) (ConnectRequest, bool) {
+// parseConnectRequest reads the request at the head of buffer and returns it
+// with the bytes behind it: a client told handshake.FeatureEarlyData sends
+// its first data without waiting for the ack.
+//
+// ai-generated: the early bytes (optimistic connect).
+func parseConnectRequest(buffer []byte) (ConnectRequest, []byte, bool) {
 	var request ConnectRequest
-	if err := json.Unmarshal(buffer, &request); err != nil {
-		return request, false
+	dec := json.NewDecoder(bytes.NewReader(buffer))
+	if err := dec.Decode(&request); err != nil {
+		return request, nil, false
 	}
-	return request, request.Cmd == connectCommand
+	return request, buffer[dec.InputOffset():], request.Cmd == connectCommand
 }
 
 func defaultAuthHook(_ string, _ map[string]any) (string, error) {

@@ -167,6 +167,13 @@ type Client struct {
 	peerNoIPv6Until atomic.Int64
 	ipv6Failures    atomic.Int32
 
+	// earlyData is whether the session's exit announced
+	// handshake.FeatureEarlyData; set before the session is installed, so a
+	// request that sees the session sees its flag. See connectStream.
+	//
+	// ai-generated: the field (optimistic connect).
+	earlyData atomic.Bool
+
 	// parked counts the requests waiting for a session that is not there
 	// (tunnelWhenReady, waitSessionReady). With a tun2socks in front every
 	// one of them is also a session over there, with a stack of its own that

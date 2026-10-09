@@ -444,7 +444,7 @@ func (s *Server) acceptPeerHandshake(ctx context.Context, peer *peerSession) {
 			return
 		}
 		_ = stream.SetDeadline(time.Now().Add(handshake.DefaultTimeout))
-		hello, sessionID, err := handshake.Server(stream, s.authHook, s.localPeerID())
+		hello, sessionID, err := handshake.Server(stream, s.authHook, s.localPeerID(), handshake.FeatureEarlyData)
 		_ = stream.SetDeadline(time.Time{})
 		if err != nil {
 			_ = stream.Close()

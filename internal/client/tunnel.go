@@ -52,12 +52,20 @@ func (j connectJob) open(conn net.Conn, outbound io.Writer) bool {
 }
 
 // tunnelPrep is a tunnel made ready for one CONNECT: a stream the exit has
-// acknowledged, or the SOCKS reply the failure deserves.
+// acknowledged or will (see connectStream), or the SOCKS reply the failure
+// deserves.
 //
 // ai-generated: split out of tunnelWhenReady so the sniff can race it (#35).
 type tunnelPrep struct {
-	stream *smux.Stream
+	stream tunnelStream
 	reply  []byte
+}
+
+// tunnelStream is a stream carrying one CONNECT: the smux stream itself, or
+// an ackStream around it.
+type tunnelStream interface {
+	io.ReadWriteCloser
+	ID() uint32
 }
 
 // openTunnel opens a stream on session and has the exit dial the target. The
@@ -72,18 +80,19 @@ func (c *Client) openTunnel(session *smux.Session, job connectJob) tunnelPrep {
 		return tunnelPrep{reply: replyHostUnreachable(job.host)}
 	}
 	logger.Infof("sid=%d tunnel to %s:%d", stream.ID(), job.host, job.port)
-	if err := c.sendConnectRequest(stream, job.host, job.port); err != nil {
+	tunnel, err := c.connectStream(stream, job.host, job.port)
+	if err != nil {
 		logger.Warnf("sid=%d connect failed: %v", stream.ID(), err)
 		c.noteConnectFailure(err, job.host)
 		_ = stream.Close()
 		return tunnelPrep{reply: replyForConnectError(err, job.host)}
 	}
 	c.noteConnectSuccess(job.host)
-	return tunnelPrep{stream: stream}
+	return tunnelPrep{stream: tunnel}
 }
 
 // pumpTunnel carries one CONNECT over a stream openTunnel prepared.
-func (c *Client) pumpTunnel(ctx context.Context, conn net.Conn, stream *smux.Stream, job connectJob) {
+func (c *Client) pumpTunnel(ctx context.Context, conn net.Conn, stream tunnelStream, job connectJob) {
 	if !job.open(conn, stream) {
 		return
 	}
@@ -92,7 +101,35 @@ func (c *Client) pumpTunnel(ctx context.Context, conn net.Conn, stream *smux.Str
 	}
 }
 
+// connectStream sends the CONNECT on stream and returns what carries it on.
+// An exit that takes early data (handshake.FeatureEarlyData) is not waited
+// for: the stream comes back at once, wrapped so its first read is the ack,
+// and the round trip the ack costs overlaps the client's first bytes. An
+// IPv6 literal still waits, so a refusal reaches the app as a SOCKS reply it
+// can fall back on, and the no-IPv6 latch keeps counting.
+//
+// ai-generated: the whole function (optimistic connect).
+func (c *Client) connectStream(stream *smux.Stream, targetAddr string, targetPort int) (tunnelStream, error) {
+	if !c.earlyData.Load() || isIPv6Literal(targetAddr) {
+		if err := c.sendConnectRequest(stream, targetAddr, targetPort); err != nil {
+			return nil, err
+		}
+		return stream, nil
+	}
+	if err := writeConnectRequest(stream, targetAddr, targetPort); err != nil {
+		return nil, err
+	}
+	return &ackStream{Stream: stream}, nil
+}
+
 func (c *Client) sendConnectRequest(stream *smux.Stream, targetAddr string, targetPort int) error {
+	if err := writeConnectRequest(stream, targetAddr, targetPort); err != nil {
+		return err
+	}
+	return readConnectAck(stream)
+}
+
+func writeConnectRequest(stream *smux.Stream, targetAddr string, targetPort int) error {
 	request, err := json.Marshal(map[string]any{
 		"cmd": "connect", "addr": targetAddr, "port": targetPort,
 	})
@@ -104,6 +141,10 @@ func (c *Client) sendConnectRequest(stream *smux.Stream, targetAddr string, targ
 		return fmt.Errorf("sid=%d write connect req: %w", stream.ID(), err)
 	}
 	_ = stream.SetWriteDeadline(time.Time{})
+	return nil
+}
+
+func readConnectAck(stream *smux.Stream) error {
 	ack := make([]byte, 1)
 	_ = stream.SetReadDeadline(time.Now().Add(runtime.ConnectAckTimeout()))
 	if _, err := io.ReadFull(stream, ack); err != nil {
@@ -114,6 +155,27 @@ func (c *Client) sendConnectRequest(stream *smux.Stream, targetAddr string, targ
 		return &connectAckError{code: ack[0], streamID: stream.ID()}
 	}
 	return nil
+}
+
+// ackStream is a stream whose CONNECT went out without waiting for the ack:
+// its first read takes the ack, and a refusal ends the stream before any of
+// the target's bytes pass. Reads come from one goroutine, the copy's.
+//
+// ai-generated: the whole type (optimistic connect).
+type ackStream struct {
+	*smux.Stream
+	acked bool
+}
+
+func (s *ackStream) Read(p []byte) (int, error) {
+	if !s.acked {
+		if err := readConnectAck(s.Stream); err != nil {
+			logger.Warnf("sid=%d connect failed: %v", s.ID(), err)
+			return 0, err
+		}
+		s.acked = true
+	}
+	return s.Stream.Read(p) //nolint:wrapcheck // a transparent wrapper
 }
 
 // noteConnectFailure counts an IPv6 literal the exit could not reach, and

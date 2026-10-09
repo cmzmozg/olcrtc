@@ -92,7 +92,7 @@ func TestParseConnectRequest(t *testing.T) {
 		t.Fatalf("Marshal() error = %v", err)
 	}
 
-	req, ok := parseConnectRequest(buf)
+	req, _, ok := parseConnectRequest(buf)
 	if !ok {
 		t.Fatal("parseConnectRequest() returned ok=false")
 	}
@@ -100,11 +100,26 @@ func TestParseConnectRequest(t *testing.T) {
 		t.Fatalf("parseConnectRequest() = %+v", req)
 	}
 
-	if _, ok := parseConnectRequest([]byte("not-json")); ok {
+	if _, _, ok := parseConnectRequest([]byte("not-json")); ok {
 		t.Fatal("parseConnectRequest() unexpectedly accepted invalid json")
 	}
-	if _, ok := parseConnectRequest([]byte(`{"cmd":"other"}`)); ok {
+	if _, _, ok := parseConnectRequest([]byte(`{"cmd":"other"}`)); ok {
 		t.Fatal("parseConnectRequest() unexpectedly accepted wrong command")
+	}
+}
+
+// ai-generated: the whole test (optimistic connect).
+func TestParseConnectRequestEarlyData(t *testing.T) {
+	buf := []byte(`{"cmd":"connect","addr":"example.com","port":443}` + "early-hello")
+	req, early, ok := parseConnectRequest(buf)
+	if !ok || req.Addr != "example.com" || req.Port != 443 {
+		t.Fatalf("parseConnectRequest() = %+v, ok=%v", req, ok)
+	}
+	if string(early) != "early-hello" {
+		t.Fatalf("early = %q, want the bytes behind the request", early)
+	}
+	if _, _, ok := parseConnectRequest(buf[:20]); ok {
+		t.Fatal("parseConnectRequest() accepted a partial request")
 	}
 }
 

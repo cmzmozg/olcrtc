@@ -90,7 +90,7 @@ func TestOpenControlStreamResendsHelloWhenFirstIsUnanswered(t *testing.T) {
 	}()
 
 	start := time.Now()
-	stream, sessionID, peerID, err := openControlStreamTimeout(
+	stream, sessionID, peerID, err := openControl(
 		context.Background(), clientSess, "dev", nil, 2*time.Second,
 	)
 	if err != nil {
@@ -128,7 +128,7 @@ func TestOpenControlStreamKeepsFirstHelloWhileHedging(t *testing.T) {
 		got <- accepted{first, second}
 	}()
 
-	stream, _, _, err := openControlStreamTimeout(context.Background(), clientSess, "dev", nil, 2*time.Second)
+	stream, _, _, err := openControl(context.Background(), clientSess, "dev", nil, 2*time.Second)
 	if err != nil {
 		t.Fatalf("openControlStreamTimeout() error = %v", err)
 	}
@@ -169,7 +169,7 @@ func TestOpenControlStreamRejectEndsItAtOnce(t *testing.T) {
 	}()
 
 	start := time.Now()
-	stream, sessionID, peerID, err := openControlStreamTimeout(context.Background(), clientSess, "dev", nil, 5*time.Second)
+	stream, sessionID, peerID, err := openControl(context.Background(), clientSess, "dev", nil, 5*time.Second)
 	if stream != nil || sessionID != "" || peerID != "" {
 		t.Fatalf("a rejected handshake returned (%v, %q, %q)", stream, sessionID, peerID)
 	}
@@ -198,7 +198,7 @@ func TestOpenControlStreamTimesOutWhenNobodyAnswers(t *testing.T) {
 	}()
 
 	start := time.Now()
-	stream, sessionID, peerID, err := openControlStreamTimeout(context.Background(), clientSess, "dev", nil, 350*time.Millisecond)
+	stream, sessionID, peerID, err := openControl(context.Background(), clientSess, "dev", nil, 350*time.Millisecond)
 	if err == nil || stream != nil || sessionID != "" || peerID != "" {
 		t.Fatalf("openControlStreamTimeout() = (%v, %q, %q, %v) with nobody answering", stream, sessionID, peerID, err)
 	}
@@ -312,7 +312,7 @@ func TestOpenControlStreamWindowStartsWhenItsPathOpens(t *testing.T) {
 	served := make(chan error, 1)
 	go serveLatePeer(serverSess, start.Add(peerUp), served)
 
-	stream, sessionID, peerID, err := openControlStreamTimeout(
+	stream, sessionID, peerID, err := openControl(
 		context.Background(), clientSess, "dev", nil, timeout,
 	)
 	if err != nil {
@@ -335,7 +335,7 @@ func TestOpenControlStreamGivesUpOnAPathThatNeverOpens(t *testing.T) {
 	start := time.Now()
 	done := make(chan error, 1)
 	go func() {
-		_, _, _, err := openControlStreamTimeout(context.Background(), clientSess, "dev", nil, 300*time.Millisecond)
+		_, _, _, err := openControl(context.Background(), clientSess, "dev", nil, 300*time.Millisecond)
 		done <- err
 	}()
 	select {
@@ -357,7 +357,7 @@ func TestOpenControlStreamStopsOnContextCancelBeforeItsPathOpens(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		_, _, _, err := openControlStreamTimeout(ctx, clientSess, "dev", nil, time.Hour)
+		_, _, _, err := openControl(ctx, clientSess, "dev", nil, time.Hour)
 		done <- err
 	}()
 	time.Sleep(20 * time.Millisecond)
@@ -460,7 +460,7 @@ func TestOpenControlStreamWindowStartsWhenABatchingPathOpens(t *testing.T) {
 	served := make(chan error, 1)
 	go serveLatePeer(serverSess, start.Add(peerUp), served)
 
-	stream, sessionID, peerID, err := openControlStreamTimeout(
+	stream, sessionID, peerID, err := openControl(
 		context.Background(), clientSess, "dev", nil, timeout,
 	)
 	if err != nil {
@@ -474,4 +474,16 @@ func TestOpenControlStreamWindowStartsWhenABatchingPathOpens(t *testing.T) {
 	if err := <-served; err != nil {
 		t.Fatalf("server handshake error = %v", err)
 	}
+}
+
+// openControl is openControlStreamTimeout with the welcome's ids split out.
+func openControl(
+	ctx context.Context,
+	session *smux.Session,
+	deviceID string,
+	claims map[string]any,
+	timeout time.Duration,
+) (*smux.Stream, string, string, error) {
+	stream, welcome, err := openControlStreamTimeout(ctx, session, deviceID, claims, timeout)
+	return stream, welcome.SessionID, welcome.PeerID, err
 }

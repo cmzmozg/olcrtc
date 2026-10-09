@@ -120,18 +120,19 @@ func (c *Client) dnsQueryOverStream(
 	}
 	defer func() { _ = stream.Close() }()
 	// One hard stop for the whole exchange, whatever the peer does: the
-	// CONNECT ack wait inside sendConnectRequest carries its own, longer
+	// CONNECT ack wait inside connectStream carries its own, longer
 	// deadline, and a closed stream ends that too.
 	stop := time.AfterFunc(dnsQueryDeadline, func() { _ = stream.Close() })
 	defer stop.Stop()
 	cancelWatch := context.AfterFunc(ctx, func() { _ = stream.Close() })
 	defer cancelWatch()
 
-	if connectErr := c.sendConnectRequest(stream, target.Host, int(target.Port)); connectErr != nil {
+	tunnel, connectErr := c.connectStream(stream, target.Host, int(target.Port))
+	if connectErr != nil {
 		logger.Debugf("dns over the stream: %v", connectErr)
 		return
 	}
-	response, exchangeErr := exchangeTCPDNS(stream, query)
+	response, exchangeErr := exchangeTCPDNS(tunnel, query)
 	if exchangeErr != nil {
 		logger.Debugf("dns over the stream: sid=%d %v", stream.ID(), exchangeErr)
 		return

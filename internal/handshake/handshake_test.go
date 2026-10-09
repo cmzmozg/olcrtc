@@ -57,6 +57,25 @@ func TestHandshakeRoundTrip(t *testing.T) {
 	}
 }
 
+// ai-generated: the whole test (optimistic connect).
+func TestWelcomeCarriesFeatures(t *testing.T) {
+	for _, features := range [][]string{nil, {FeatureEarlyData}} {
+		cConn, sConn := pair(t)
+		go func() {
+			_, _, _ = Server(sConn, func(string, map[string]any) (string, error) {
+				return testSessionID, nil
+			}, testPeerID, features...)
+		}()
+		w, err := Greet(cConn, "dev-1", nil)
+		if err != nil {
+			t.Fatalf("Greet: %v", err)
+		}
+		if got, want := w.Has(FeatureEarlyData), len(features) > 0; got != want {
+			t.Fatalf("features %v: Has(early-data) = %v, want %v", features, got, want)
+		}
+	}
+}
+
 func TestHandshakeRejected(t *testing.T) {
 	cConn, sConn := pair(t)
 
@@ -95,15 +114,15 @@ func TestReplyMustMatchClientChallenge(t *testing.T) {
 		t.Fatalf("write matching welcome: %v", err)
 	}
 
-	if _, _, matched, err := readReply(&replies, challengeB); err != nil || matched {
+	if _, matched, err := readReply(&replies, challengeB); err != nil || matched {
 		t.Fatalf("replayed reply = matched %v, err %v; want ignored", matched, err)
 	}
-	sessionID, peerID, matched, err := readReply(&replies, challengeB)
+	w, matched, err := readReply(&replies, challengeB)
 	if err != nil || !matched {
 		t.Fatalf("matching reply = matched %v, err %v", matched, err)
 	}
-	if sessionID != "session-b" || peerID != "peer-b" {
-		t.Fatalf("matching reply = session %q peer %q", sessionID, peerID)
+	if w.SessionID != "session-b" || w.PeerID != "peer-b" {
+		t.Fatalf("matching reply = session %q peer %q", w.SessionID, w.PeerID)
 	}
 }
 

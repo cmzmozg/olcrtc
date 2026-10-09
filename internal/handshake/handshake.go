@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"time"
 
 	"github.com/openlibrecommunity/olcrtc/internal/framing"
@@ -37,6 +38,13 @@ const ProtoVersion = 3
 // echoes it in every reply so a valid encrypted reply captured for one client
 // cannot be retargeted to another client that shares the room and PSK.
 const challengeSize = 16
+
+// FeatureEarlyData in a welcome says the server reads a stream's first bytes
+// right behind its CONNECT request, so the client need not wait for the ack
+// before sending them.
+//
+// ai-generated: the feature flag (optimistic connect).
+const FeatureEarlyData = "early-data"
 
 // MaxMessageSize caps a single handshake frame. 64 KiB is comfortably larger
 // than any legitimate HELLO/WELCOME payload and prevents memory blowups from
@@ -70,11 +78,17 @@ type Hello struct {
 
 // Welcome is the server's response on a successful handshake.
 type Welcome struct {
-	Version   int     `json:"version"`
-	Type      MsgType `json:"type"`
-	SessionID string  `json:"session_id"`
-	PeerID    string  `json:"peer_id,omitempty"`
-	Challenge string  `json:"challenge"`
+	Version   int      `json:"version"`
+	Type      MsgType  `json:"type"`
+	SessionID string   `json:"session_id"`
+	PeerID    string   `json:"peer_id,omitempty"`
+	Challenge string   `json:"challenge"`
+	Features  []string `json:"features,omitempty"`
+}
+
+// Has reports whether the server announced feature.
+func (w Welcome) Has(feature string) bool {
+	return slices.Contains(w.Features, feature)
 }
 
 // Reject is the server's response when auth fails.
@@ -110,9 +124,15 @@ type AuthFunc func(deviceID string, claims map[string]any) (sessionID string, er
 // Client performs the client side of the handshake on rw and returns the
 // session ID and authenticated routing peer ID assigned by the server.
 func Client(rw io.ReadWriter, deviceID string, claims map[string]any) (string, string, error) {
+	w, err := Greet(rw, deviceID, claims)
+	return w.SessionID, w.PeerID, err
+}
+
+// Greet is [Client] returning the whole welcome, features included.
+func Greet(rw io.ReadWriter, deviceID string, claims map[string]any) (Welcome, error) {
 	challenge, err := newChallenge()
 	if err != nil {
-		return "", "", err
+		return Welcome{}, err
 	}
 	hello := Hello{
 		Version:   ProtoVersion,
@@ -122,23 +142,23 @@ func Client(rw io.ReadWriter, deviceID string, claims map[string]any) (string, s
 		Claims:    claims,
 	}
 	if err := writeFrame(rw, hello); err != nil {
-		return "", "", fmt.Errorf("send hello: %w", err)
+		return Welcome{}, fmt.Errorf("send hello: %w", err)
 	}
 
 	for {
-		sessionID, peerID, matched, replyErr := readReply(rw, challenge)
+		w, matched, replyErr := readReply(rw, challenge)
 		if !matched {
 			continue
 		}
 
-		return sessionID, peerID, replyErr
+		return w, replyErr
 	}
 }
 
-func readReply(rw io.Reader, challenge string) (string, string, bool, error) {
+func readReply(rw io.Reader, challenge string) (Welcome, bool, error) {
 	raw, err := readFrame(rw)
 	if err != nil {
-		return "", "", true, fmt.Errorf("read welcome: %w", err)
+		return Welcome{}, true, fmt.Errorf("read welcome: %w", err)
 	}
 
 	var probe struct {
@@ -146,38 +166,38 @@ func readReply(rw io.Reader, challenge string) (string, string, bool, error) {
 		Challenge string  `json:"challenge"`
 	}
 	if err := json.Unmarshal(raw, &probe); err != nil {
-		return "", "", true, fmt.Errorf("parse reply: %w", err)
+		return Welcome{}, true, fmt.Errorf("parse reply: %w", err)
 	}
 	if probe.Challenge != challenge {
-		return "", "", false, nil
+		return Welcome{}, false, nil
 	}
 
 	switch probe.Type {
 	case TypeWelcome:
-		sessionID, peerID, parseErr := parseWelcome(raw, challenge)
-		return sessionID, peerID, true, parseErr
+		w, parseErr := parseWelcome(raw, challenge)
+		return w, true, parseErr
 	case TypeReject:
-		return "", "", true, parseReject(raw, challenge)
+		return Welcome{}, true, parseReject(raw, challenge)
 	case TypeHello:
-		return "", "", true, fmt.Errorf("%w: got %q", ErrUnexpectedMessage, probe.Type)
+		return Welcome{}, true, fmt.Errorf("%w: got %q", ErrUnexpectedMessage, probe.Type)
 	default:
-		return "", "", true, fmt.Errorf("%w: got %q", ErrUnexpectedMessage, probe.Type)
+		return Welcome{}, true, fmt.Errorf("%w: got %q", ErrUnexpectedMessage, probe.Type)
 	}
 }
 
-func parseWelcome(raw []byte, challenge string) (string, string, error) {
+func parseWelcome(raw []byte, challenge string) (Welcome, error) {
 	var w Welcome
 	if err := json.Unmarshal(raw, &w); err != nil {
-		return "", "", fmt.Errorf("parse welcome: %w", err)
+		return Welcome{}, fmt.Errorf("parse welcome: %w", err)
 	}
 	if w.Version != ProtoVersion {
-		return "", "", fmt.Errorf("%w: server v%d, client v%d",
+		return Welcome{}, fmt.Errorf("%w: server v%d, client v%d",
 			ErrProtocolVersion, w.Version, ProtoVersion)
 	}
 	if w.Challenge != challenge {
-		return "", "", ErrChallengeMismatch
+		return Welcome{}, ErrChallengeMismatch
 	}
-	return w.SessionID, w.PeerID, nil
+	return w, nil
 }
 
 func parseReject(raw []byte, challenge string) error {
@@ -202,8 +222,9 @@ func newChallenge() (string, error) {
 
 // Server performs the server side of the handshake. It reads CLIENT_HELLO,
 // invokes auth, and writes the corresponding WELCOME or REJECT. On success it
-// returns the parsed Hello and the session ID produced by auth.
-func Server(rw io.ReadWriter, auth AuthFunc, peerID string) (Hello, string, error) {
+// returns the parsed Hello and the session ID produced by auth. features are
+// announced in the welcome.
+func Server(rw io.ReadWriter, auth AuthFunc, peerID string, features ...string) (Hello, string, error) {
 	raw, err := readFrame(rw)
 	if err != nil {
 		return Hello{}, "", fmt.Errorf("read hello: %w", err)
@@ -249,6 +270,7 @@ func Server(rw io.ReadWriter, auth AuthFunc, peerID string) (Hello, string, erro
 		SessionID: sessionID,
 		PeerID:    peerID,
 		Challenge: h.Challenge,
+		Features:  features,
 	}); err != nil {
 		return h, sessionID, fmt.Errorf("send welcome: %w", err)
 	}

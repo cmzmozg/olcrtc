@@ -104,7 +104,8 @@ func (c *Client) bringUpLink(ctx context.Context, cfg Config, cancel context.Can
 		}
 		return fmt.Errorf("create smux sessions: %w", err)
 	}
-	control, sessionID, peerID, err := openControlStream(ctx, pair.ControlSession, c.deviceID, c.claims)
+	control, welcome, err := openControlStream(ctx, pair.ControlSession, c.deviceID, c.claims)
+	sessionID, peerID := welcome.SessionID, welcome.PeerID
 	if err != nil {
 		err = c.classifyHandshakeFailure(err, conn, controlConn)
 		_ = pair.Close()
@@ -120,6 +121,7 @@ func (c *Client) bringUpLink(ctx context.Context, cfg Config, cancel context.Can
 	}
 	logger.Infof("session %s opened (device=%s)", sessionID, c.deviceID)
 	c.sessMu.Lock()
+	c.earlyData.Store(welcome.Has(handshake.FeatureEarlyData))
 	c.installPairLocked(pair)
 	c.controlStrm = control
 	c.sessionID = sessionID
@@ -163,7 +165,7 @@ func openControlStream(
 	session *smux.Session,
 	deviceID string,
 	claims map[string]any,
-) (*smux.Stream, string, string, error) {
+) (*smux.Stream, handshake.Welcome, error) {
 	return openControlStreamTimeout(ctx, session, deviceID, claims, handshake.DefaultTimeout)
 }
 
@@ -185,14 +187,14 @@ func openControlStreamTimeout(
 	deviceID string,
 	claims map[string]any,
 	timeout time.Duration,
-) (*smux.Stream, string, string, error) {
+) (*smux.Stream, handshake.Welcome, error) {
 	race := &helloRace{
 		session: session, deviceID: deviceID, claims: claims,
 		replies: make(chan helloResult, maxHelloAttempts),
 	}
 	first, err := race.openFirst(ctx, timeout)
 	if err != nil {
-		return nil, "", "", err
+		return nil, handshake.Welcome{}, err
 	}
 	race.deadline = time.Now().Add(timeout)
 	race.start(first)
@@ -202,12 +204,12 @@ func openControlStreamTimeout(
 		select {
 		case <-ctx.Done():
 			race.closeAllBut(nil)
-			return nil, "", "", fmt.Errorf("handshake client: %w", ctx.Err())
+			return nil, handshake.Welcome{}, fmt.Errorf("handshake client: %w", ctx.Err())
 		case <-resend.C:
 			race.resend()
 		case r := <-race.replies:
 			if result, done := race.settle(ctx, r); done {
-				return result.stream, result.sessionID, result.peerID, result.err
+				return result.stream, result.welcome, result.err
 			}
 		}
 	}
@@ -215,10 +217,9 @@ func openControlStreamTimeout(
 
 // helloResult is what one hello stream came back with.
 type helloResult struct {
-	stream    *smux.Stream
-	sessionID string
-	peerID    string
-	err       error
+	stream  *smux.Stream
+	welcome handshake.Welcome
+	err     error
 }
 
 // helloRace is one handshake's hellos in flight: each on its own stream with
@@ -275,8 +276,8 @@ func (h *helloRace) start(stream *smux.Stream) {
 	h.pending++
 	_ = stream.SetDeadline(h.deadline)
 	go func() {
-		sessionID, peerID, err := handshake.Client(stream, h.deviceID, h.claims)
-		h.replies <- helloResult{stream: stream, sessionID: sessionID, peerID: peerID, err: err}
+		welcome, err := handshake.Greet(stream, h.deviceID, h.claims)
+		h.replies <- helloResult{stream: stream, welcome: welcome, err: err}
 	}()
 }
 
@@ -712,9 +713,10 @@ func (c *Client) tryReopenSession(
 		}
 		return roundSilent
 	}
-	control, sessionID, peerID, err := openControlStreamTimeout(
+	control, welcome, err := openControlStreamTimeout(
 		run, pair.ControlSession, c.deviceID, c.claims, c.helloTimeout(),
 	)
+	sessionID, peerID := welcome.SessionID, welcome.PeerID
 	if err != nil {
 		classified := c.classifyHandshakeFailure(err, conn, controlConn)
 		if run.Err() == nil {
@@ -741,6 +743,7 @@ func (c *Client) tryReopenSession(
 	}
 	logger.Infof("session %s reopened (device=%s)", sessionID, c.deviceID)
 	c.sessMu.Lock()
+	c.earlyData.Store(welcome.Has(handshake.FeatureEarlyData))
 	c.installPairLocked(pair)
 	c.controlStrm = control
 	c.sessionID = sessionID

@@ -194,7 +194,9 @@ func (r ConnectRequest) validate() error {
 	return nil
 }
 
-func (s *Server) dispatch(ctx context.Context, stream *smux.Stream, request ConnectRequest, sessionID string) {
+func (s *Server) dispatch(
+	ctx context.Context, stream *smux.Stream, request ConnectRequest, sessionID string, early []byte,
+) {
 	// Where a peer connects is logged at debug only: an exit's log is no
 	// record of its users' destinations. A failure says why, not where.
 	// ai-generated: the log levels and the failure line (egress hardening).
@@ -214,7 +216,14 @@ func (s *Server) dispatch(ctx context.Context, stream *smux.Stream, request Conn
 	if _, err := stream.Write([]byte{tunnelcore.ConnectAckOK}); err != nil {
 		return
 	}
+	// ai-generated: the early bytes go first (optimistic connect).
+	if len(early) > 0 {
+		if _, err := conn.Write(early); err != nil {
+			return
+		}
+	}
 	counts, copyErr := tunnelcore.CopyBidirectional(ctx, stream, conn)
+	counts.LeftToRight += uint64(len(early))
 	if errors.Is(copyErr, tunnelcore.ErrHalfOpenIdle) {
 		logger.Debugf("sid=%d %s closed: half-open and silent for %s", stream.ID(), addr, tunnelcore.HalfOpenGrace)
 	}
