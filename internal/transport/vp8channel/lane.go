@@ -86,6 +86,9 @@ type dataLane struct {
 	conn func() *kcpConn
 	// window sets the send window of the queue's KCP session, in segments.
 	window func(segments int)
+	// kick says out went from empty to not; the writer then flushes at once
+	// rather than at its next tick. ai-generated: the idle kick.
+	kick <-chan struct{}
 	// srtt reads the session's smoothed round trip in milliseconds; nil
 	// leaves the window to the caps. ai-generated: srtt and the adapt state.
 	srtt      func() int32

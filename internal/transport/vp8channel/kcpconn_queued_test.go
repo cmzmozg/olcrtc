@@ -170,3 +170,27 @@ func TestAResentPushIsTimedFromItsFirstSend(t *testing.T) {
 			time.Duration(c.pathRTT), c.ackedSent, len(c.firstAt))
 	}
 }
+
+// ai-generated: the idle kick fires on an empty queue only.
+func TestEnqueueKicksOnlyWhenTheQueueWasEmpty(t *testing.T) {
+	out := make(chan *packetBuffer, 4)
+	kick := make(chan struct{}, 1)
+	c := newKCPConn(out, 4, testEpochHdr(1))
+	c.kick = kick
+	if _, err := c.WriteTo(pushSegment(1, 8), nil); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-kick:
+	default:
+		t.Fatal("the first packet into an empty queue did not kick the writer")
+	}
+	if _, err := c.WriteTo(pushSegment(2, 8), nil); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-kick:
+		t.Fatal("a packet queued behind another kicked the writer")
+	default:
+	}
+}

@@ -63,6 +63,12 @@ func (p *streamTransport) enqueueDatagram(dst uint32, data []byte) error {
 	frame = append(frame, data...)
 	select {
 	case p.datagram <- frame:
+		if len(p.datagram) == 1 { // ai-generated: the idle kick.
+			select {
+			case p.data.kick <- struct{}{}:
+			default:
+			}
+		}
 		return nil
 	default:
 		return ErrDatagramQueueFull

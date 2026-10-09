@@ -102,6 +102,12 @@ type kcpConn struct {
 	// queuedMu guards queuedSN, the pushes waiting in out by sequence number.
 	// spurious counts packets queuedDuplicate kept out of the queue.
 	// ai-generated: spurious RTO retransmissions.
+	// kick is told when out goes from empty to not, so an idle writer sends
+	// that first packet now instead of at its next frame tick: the tick wait
+	// was up to a whole frame interval per direction on every request after
+	// a pause. Nil for none. ai-generated: the idle kick.
+	kick chan struct{}
+
 	queuedMu sync.Mutex
 	queuedSN map[uint32]queuedPush
 	spurious atomic.Uint64
@@ -436,6 +442,12 @@ func (c *kcpConn) enqueue(p []byte) (int, error) {
 	c.track(packet, p)
 	select {
 	case c.out <- packet:
+		if len(c.out) == 1 { // ai-generated: the idle kick.
+			select {
+			case c.kick <- struct{}{}:
+			default:
+			}
+		}
 		return len(p), nil
 	case <-c.closed:
 		packet.release()

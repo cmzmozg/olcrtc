@@ -35,7 +35,7 @@ func newWriterState(p *streamTransport) *writerState {
 		forceKeepaliveEvery: max(int(forceKeepalivePeriod/p.frameInterval), 1),
 		data: dataLane{
 			out: p.data.out, acks: p.data.acks, conn: p.dataConn, window: p.dataWindow, srtt: p.dataSRTT,
-			name: "data",
+			kick: p.data.kick, name: "data",
 		},
 	}
 }
@@ -260,11 +260,25 @@ func (p *streamTransport) writerLoop() {
 
 	w := newWriterState(p)
 	defer w.releasePending()
+	var lastFlush time.Time
+	var kicked <-chan time.Time
 
 	for {
 		select {
 		case <-p.closeCh:
 			return
+		case <-w.data.kick:
+			// ai-generated: the idle kick. What a pause ends with goes out a
+			// moment later, once the burst KCP writes in one flush is queued,
+			// instead of at the next tick; bulk keeps out busy and the ticks.
+			if kicked == nil && time.Since(lastFlush) >= kickGap {
+				kicked = time.After(kickCoalesce)
+			}
+		case <-kicked:
+			kicked, lastFlush = nil, time.Now()
+			if w.drainDatagram() && w.data.flush(w.p, w.writeSample) {
+				w.idleTicks = 0
+			}
 		case <-ticker.C:
 			// Priority 0: keep a decodable keyframe flowing for the SFU.
 			w.forceKeepalive()
@@ -308,6 +322,8 @@ func (p *streamTransport) peerWriterPump(lane dataLane, done <-chan struct{}) {
 	keyframeEvery := max(int(forceKeepalivePeriod/p.frameInterval), 1)
 	ticksSinceKeyframe := 0
 	defer lane.release()
+	var lastFlush time.Time
+	var kicked <-chan time.Time
 
 	for {
 		select {
@@ -315,6 +331,13 @@ func (p *streamTransport) peerWriterPump(lane dataLane, done <-chan struct{}) {
 			return
 		case <-done:
 			return
+		case <-lane.kick:
+			if kicked == nil && time.Since(lastFlush) >= kickGap { // ai-generated: the idle kick.
+				kicked = time.After(kickCoalesce)
+			}
+		case <-kicked:
+			kicked, lastFlush = nil, time.Now()
+			lane.flush(p, p.writeSampleLocked)
 		case <-ticker.C:
 			ticksSinceKeyframe++
 			if ticksSinceKeyframe >= keyframeEvery {

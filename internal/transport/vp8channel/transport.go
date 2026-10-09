@@ -94,6 +94,12 @@ const (
 	// is injected even while bulk data flows, so the SFU decoder never times
 	// out and stops forwarding the track.
 	forceKeepalivePeriod = 2 * time.Second
+	// kickGap is the least time between two kicked flushes, so a burst of
+	// small writes does not turn into a frame each. ai-generated.
+	kickGap = 5 * time.Millisecond
+	// kickCoalesce is how long a kicked flush waits for the rest of the
+	// burst that kicked it. ai-generated.
+	kickCoalesce = time.Millisecond
 	// ai-generated: publishBurstBytes and this comment (olcrtc#26).
 	// publishBurstBytes is what the writer's token bucket holds when the
 	// engine's service polices how fast a participant may publish (see
@@ -306,6 +312,7 @@ func newStreamTransport(
 	tr.control = newKCPPlane(controlOutboundQueueSize, tr.deliverControlData)
 	// ai-generated: both planes run with this transport's window (olcrtc#26).
 	tr.data.sndWnd, tr.control.sndWnd = tr.sendWindow, tr.sendWindow
+	tr.data.kick = make(chan struct{}, 1) // ai-generated: the idle kick.
 
 	tr.shaper = transport.NewShaper(cfg.Traffic, tr.Features())
 

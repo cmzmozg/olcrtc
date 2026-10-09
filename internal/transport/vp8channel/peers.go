@@ -369,7 +369,8 @@ func (p *streamTransport) peerSessionFor(epoch uint32) *peerSession {
 	// do not ingest them (issue #95 multi-client cross-talk).
 	hdr := buildEpochHeaderTo(p.bindingToken, p.localEpochValue(), epoch)
 
-	data, err := startKCPAcks(out, acks, func(payload []byte) {
+	kick := make(chan struct{}, 1) // ai-generated: the idle kick.
+	data, err := startKCPAcks(out, acks, kick, func(payload []byte) {
 		if p.onPeerData != nil {
 			p.onPeerData(peerID, payload)
 		}
@@ -398,6 +399,7 @@ func (p *streamTransport) peerSessionFor(epoch uint32) *peerSession {
 		conn:   func() *kcpConn { return data.conn },
 		window: func(segments int) { data.sess.SetWindowSize(segments, 0) },
 		srtt:   data.sess.GetSRTT, // ai-generated: the adaptive window.
+		kick:   kick,
 		name:   "peer " + peerID,
 	}, sess.done)
 

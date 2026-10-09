@@ -138,7 +138,7 @@ type kcpRuntime struct {
 func startKCP(
 	out chan<- *packetBuffer, onData func([]byte), epochHdr [epochHdrLen]byte, sndWnd int,
 ) (*kcpRuntime, error) {
-	return startKCPAcks(out, nil, onData, epochHdr, sndWnd)
+	return startKCPAcks(out, nil, nil, onData, epochHdr, sndWnd)
 }
 
 // startKCPAcks is startKCP with the packets that only acknowledge the peer
@@ -147,10 +147,12 @@ func startKCP(
 //
 // ai-generated: the acks queue (issue #12).
 func startKCPAcks(
-	out, acks chan<- *packetBuffer, onData func([]byte), epochHdr [epochHdrLen]byte, sndWnd int,
+	out, acks chan<- *packetBuffer, kick chan struct{}, onData func([]byte), epochHdr [epochHdrLen]byte,
+	sndWnd int,
 ) (*kcpRuntime, error) {
 	c := newKCPConn(out, inboundQueueSizeFor(), epochHdr)
 	c.acks = acks
+	c.kick = kick // ai-generated: the idle kick.
 
 	sess, err := kcp.NewConn3(kcpConvID, fakeUDPAddr(), nil, 0, 0, c)
 	if err != nil {
@@ -275,6 +277,9 @@ type kcpPlane struct {
 	// sndWnd is the KCP send window its sessions run with; 0 takes this
 	// host's profile. The transport sets it. ai-generated (olcrtc#26).
 	sndWnd int
+	// kick tells the writer that out went from empty to not, nil for none.
+	// ai-generated: the idle kick, see kcpConn.kick.
+	kick chan struct{}
 
 	// lifecycleMu serializes start/restart/close. Without it two concurrent
 	// restarts - a provider reconnect and an upper-layer ResetPeer fire
@@ -335,7 +340,7 @@ func (p *kcpPlane) start(hdr [epochHdrLen]byte) (bool, error) {
 			return
 		}
 		var rt *kcpRuntime
-		rt, err = startKCPAcks(p.out, p.acks, p.onData, hdr, p.sndWnd)
+		rt, err = startKCPAcks(p.out, p.acks, p.kick, p.onData, hdr, p.sndWnd)
 		if err != nil {
 			return
 		}
@@ -367,7 +372,7 @@ func (p *kcpPlane) restart(hdr [epochHdrLen]byte) {
 		old.close()
 	}
 
-	rt, err := startKCPAcks(p.out, p.acks, p.onData, hdr, p.sndWnd)
+	rt, err := startKCPAcks(p.out, p.acks, p.kick, p.onData, hdr, p.sndWnd)
 	if err != nil {
 		return
 	}
