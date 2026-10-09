@@ -56,6 +56,16 @@ const (
 	// download for 2.7 s on a 250 ms path, 512 for 0.7 s at the same rate.
 	adaptEvery = time.Second
 	adaptFloor = 512
+	// ai-generated: repeatMax, repeatAfter and their comment.
+	// A light sample that carries pushes, one with nothing queued behind it,
+	// is written again once repeatAfter has passed. Behind a lost packet with
+	// nothing after it KCP waits for a resend timeout, at least two round
+	// trips here, and pion's NACK for a whole interval plus one; the repeat
+	// is there a frame later. What it costs is the light traffic twice, and
+	// none of the bulk: a sample over repeatMax, about two RTP packets, goes
+	// once.
+	repeatMax   = 2 * kcpMTU
+	repeatAfter = 10 * time.Millisecond
 
 	// The KCP segment header as kcp-go lays it out: conv, cmd, frg, wnd,
 	// ts, sn, una, len, little-endian.
@@ -115,6 +125,11 @@ type dataLane struct {
 	// spell, the rate the spell's cap is cut from.
 	darkRate float64
 
+	// repeat is the light sample written again at repeatAt; empty when none
+	// waits. ai-generated: the tail repeat.
+	repeat   []byte
+	repeatAt int64
+
 	// pace is the cap the lane keeps once it has been dark, frames the one
 	// it keeps on a path that loses packets.
 	pace   pace
@@ -142,6 +157,7 @@ func (l *dataLane) flush(p *streamTransport, write func([]byte) bool) bool {
 		l.seen.flushParked(now) // ai-generated: post-send resend veto.
 	}
 	acked := l.sendAcks(p, write)
+	repeated := l.sendRepeat(p, now, write)
 	sent := l.send(p, now, write)
 	if l.seen != nil {
 		if share, changed := l.frames.judge(&l.seen.delivery, p.fullPackets()); changed {
@@ -149,7 +165,33 @@ func (l *dataLane) flush(p *streamTransport, write func([]byte) bool) bool {
 			logger.Infof("vp8channel: %s: %d%% of pushed packets answered, %s", l.name, int(share*100), l.frameNote())
 		}
 	}
-	return sent || acked
+	return sent || acked || repeated
+}
+
+// sendRepeat writes the waiting repeat once it is due, unless the bucket is
+// short: it is a spare copy, never worth holding real data back for.
+//
+// ai-generated: the whole function (the tail repeat).
+func (l *dataLane) sendRepeat(p *streamTransport, now int64, write func([]byte) bool) bool {
+	if len(l.repeat) == 0 || now-l.repeatAt < int64(repeatAfter) {
+		return false
+	}
+	sample := l.repeat
+	l.repeat = l.repeat[:0]
+	return p.readyToSend(sample) && write(sample)
+}
+
+// keepRepeat copies a sample just written for sendRepeat when it is light,
+// carried pushes and the lane is neither capped nor dark.
+//
+// ai-generated: the whole function (the tail repeat).
+func (l *dataLane) keepRepeat(sample []byte, pushed bool, now int64) {
+	if !pushed || len(sample) > repeatMax || l.pending != nil || len(l.out) > 0 ||
+		l.darkSince != 0 || l.pace.rate > 0 || l.frames.limit > 0 {
+		return
+	}
+	l.repeat = append(l.repeat[:0], sample...)
+	l.repeatAt = now
 }
 
 // frameNote says what the frame cap is now, for the log.
@@ -344,8 +386,12 @@ func (l *dataLane) send(p *streamTransport, now int64, write func([]byte) bool) 
 		sample = frame.data
 		defer frame.releaseSent()
 	}
-	if write(sample) && l.notePushes(sample) && l.pushSince == 0 {
-		l.pushSince = now
+	if write(sample) {
+		pushed := l.notePushes(sample)
+		if pushed && l.pushSince == 0 {
+			l.pushSince = now
+		}
+		l.keepRepeat(sample, pushed, now)
 	}
 	l.heldBack = false
 	l.pace.wrote(now, len(sample))
