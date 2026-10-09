@@ -135,6 +135,9 @@ func (l *dataLane) flush(p *streamTransport, write func([]byte) bool) bool {
 		l.resize(p)
 	}
 	l.adapt(p, now)
+	if l.seen != nil {
+		l.seen.flushParked(now) // ai-generated: post-send resend veto.
+	}
 	acked := l.sendAcks(p, write)
 	sent := l.send(p, now, write)
 	if l.seen != nil {

@@ -111,6 +111,12 @@ type kcpConn struct {
 	sentAt  map[uint32]int64
 	pathRTT int64
 	pathVar int64
+	// ackedSent is the latest send among the acknowledged pushes: a push
+	// sent before it and still unacknowledged was lost, and its resend goes
+	// out at once.
+	ackedSent int64
+	// parked holds the resends that came due before their round trip.
+	parked map[uint32]parkedPush
 
 	mu        sync.Mutex
 	rDeadline time.Time
@@ -453,6 +459,21 @@ type queuedPush struct {
 	at int64
 }
 
+// parkedPush is a resend held back until due, its round trip from the send.
+type parkedPush struct {
+	data []byte
+	due  int64
+}
+
+// What queuedDuplicate makes of a resend: send it, drop it because a copy
+// still waits in out, or hold it while the copy that went out may still be
+// answered.
+const (
+	resendGo = iota
+	resendQueued
+	resendEarly
+)
+
 // queuedDuplicate reports whether p is only pushes whose earlier copies still
 // wait in out. KCP stamps a resend deadline when it hands a segment over, but
 // the paced writer drains a batch a frame, so the tail of a window burst can
@@ -465,20 +486,37 @@ func (c *kcpConn) queuedDuplicate(p []byte) bool {
 		return false
 	}
 	now := monoNow()
-	found := false
+	orig, pushes, early := p, 0, false
+	var sn uint32
 	for len(p) >= kcp.IKCP_OVERHEAD {
 		size := binary.LittleEndian.Uint32(p[kcpLenOff:])
 		rest := p[kcp.IKCP_OVERHEAD:]
 		if p[kcpCmdOff] != kcp.IKCP_CMD_PUSH || uint64(size) > uint64(len(rest)) {
 			return false
 		}
-		if !c.inFlight(binary.LittleEndian.Uint32(p[kcpSnOff:]), now) {
+		sn = binary.LittleEndian.Uint32(p[kcpSnOff:])
+		switch c.resendState(sn, now) {
+		case resendGo:
 			return false
+		case resendEarly:
+			early = true
 		}
-		found = true
+		pushes++
 		p = rest[size:]
 	}
-	return found && len(p) == 0
+	if pushes == 0 || len(p) != 0 || (early && pushes > 1) {
+		return false
+	}
+	if early {
+		// ai-generated: a resend due before its round trip is up waits for
+		// it instead of being dropped, which would leave a lost segment to
+		// KCP's next, backed-off timeout.
+		if c.parked == nil {
+			c.parked = make(map[uint32]parkedPush)
+		}
+		c.parked[sn] = parkedPush{data: append([]byte(nil), orig...), due: c.sentAt[sn] + c.sentWait()}
+	}
+	return true
 }
 
 // track records the pushes a queued packet carries.
@@ -507,18 +545,57 @@ func (c *kcpConn) track(packet *packetBuffer, p []byte) {
 	}
 }
 
-// inFlight reports whether a push's earlier copy still waits in out, or went
-// out less than a round trip ago as this path measures it from the send.
+// resendState says what to do with a resend: drop it while an earlier copy
+// waits in out, hold it while the copy that went out less than a round trip
+// ago (as this path measures it from the send) may still be answered, or go.
 // KCP times a resend from when it handed the segment over, so a segment that
 // waited for its frame comes due before its acknowledgement can be back: on
 // a real path a third of what arrived at the far end was such a duplicate.
 // The caller holds queuedMu. ai-generated: post-send resend veto.
-func (c *kcpConn) inFlight(sn uint32, now int64) bool {
+func (c *kcpConn) resendState(sn uint32, now int64) int {
 	if q, ok := c.queuedSN[sn]; ok && now-q.at < int64(queuedHold) {
-		return true
+		return resendQueued
 	}
 	at, ok := c.sentAt[sn]
-	return ok && c.pathRTT > 0 && now-at < min(c.pathRTT+4*c.pathVar, int64(sentHold))
+	if !ok || c.pathRTT == 0 || now-at >= c.sentWait() || c.ackedSent > at {
+		// No earlier copy, no measure of the path, the round trip is up, or
+		// a later send was acknowledged first, so this one was lost.
+		return resendGo
+	}
+	return resendEarly
+}
+
+// sentWait is how long a sent push waits for its acknowledgement before a
+// resend may follow it. The caller holds queuedMu.
+func (c *kcpConn) sentWait() int64 {
+	return min(c.pathRTT+4*c.pathVar, int64(sentHold))
+}
+
+// flushParked queues the parked resends whose round trip is up or whose
+// segment a later acknowledgement showed lost; an acknowledged one was
+// dropped from parked when its acknowledgement came. It never blocks: the
+// lane that calls it is what drains out, and a resend that finds no room
+// is left to KCP's next timeout. ai-generated: post-send resend veto.
+func (c *kcpConn) flushParked(now int64) {
+	c.queuedMu.Lock()
+	var due [][]byte
+	for sn, pp := range c.parked {
+		at, sent := c.sentAt[sn]
+		if !sent || now >= pp.due || c.ackedSent > at {
+			due = append(due, pp.data)
+			delete(c.parked, sn)
+		}
+	}
+	c.queuedMu.Unlock()
+	for _, data := range due {
+		packet := c.wrap(data)
+		c.track(packet, data)
+		select {
+		case c.out <- packet:
+		default:
+			packet.release()
+		}
+	}
 }
 
 // markSent notes when pushes went out in a sample, dropping send times older
@@ -560,7 +637,9 @@ func (c *kcpConn) noteAcks(body []byte) {
 		}
 		if body[kcpCmdOff] == kcp.IKCP_CMD_ACK {
 			sn := binary.LittleEndian.Uint32(body[kcpSnOff:])
+			delete(c.parked, sn)
 			if at, ok := c.sentAt[sn]; ok {
+				c.ackedSent = max(c.ackedSent, at)
 				delete(c.sentAt, sn)
 				c.sampleRTT(now - at)
 			}

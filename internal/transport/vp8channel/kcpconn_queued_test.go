@@ -117,3 +117,43 @@ func TestResendVetoIsCappedBySentHold(t *testing.T) {
 		t.Fatal("a slow path held a resend back past sentHold")
 	}
 }
+
+func parkedConn(t *testing.T) (*kcpConn, []byte) {
+	t.Helper()
+	c := &kcpConn{out: make(chan *packetBuffer, 4)}
+	seg := pushSegment(20, 8)
+	sent := &packetBuffer{}
+	c.track(sent, seg)
+	sent.releaseSent()
+	c.pathRTT = int64(time.Second)
+	if !c.queuedDuplicate(seg) || len(c.parked) != 1 {
+		t.Fatalf("an early resend was not parked: parked=%d", len(c.parked))
+	}
+	c.flushParked(monoNow())
+	if len(c.out) != 0 {
+		t.Fatal("a parked resend went before its round trip was up")
+	}
+	return c, seg
+}
+
+func TestParkedResendGoesOnceALaterSendIsAcknowledged(t *testing.T) {
+	c, _ := parkedConn(t)
+	time.Sleep(time.Millisecond)
+	later := &packetBuffer{}
+	c.track(later, pushSegment(21, 8))
+	later.releaseSent()
+	c.noteAcks(ackSegment(21))
+	c.flushParked(monoNow())
+	if len(c.out) != 1 || len(c.parked) != 0 {
+		t.Fatalf("out=%d parked=%d, want the resend of the lost push queued", len(c.out), len(c.parked))
+	}
+}
+
+func TestParkedResendIsDroppedWhenItsPushIsAcknowledged(t *testing.T) {
+	c, _ := parkedConn(t)
+	c.noteAcks(ackSegment(20))
+	c.flushParked(monoNow() + int64(time.Hour))
+	if len(c.out) != 0 || len(c.parked) != 0 {
+		t.Fatalf("out=%d parked=%d, want the acknowledged resend dropped", len(c.out), len(c.parked))
+	}
+}
