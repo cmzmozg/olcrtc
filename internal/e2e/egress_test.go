@@ -14,29 +14,39 @@ import (
 // ai-generated: the whole file (egress hardening).
 
 // A CONNECT to the exit's own loopback is refused end to end: the server
-// acks host unreachable and the client answers the SOCKS5 CONNECT with reply
-// 4. The same echo server answers through a tunnel whose egress policy is
-// lifted (TestClientServerSOCKSTunnelOverMemoryDatachannel).
+// acks host unreachable and never dials. The exit announces early data, so
+// the client has answered the SOCKS5 CONNECT with success already and the
+// refusal reaches the app as a stream that ends before the target says
+// anything. The same echo server answers through a tunnel whose egress
+// policy is lifted (TestClientServerSOCKSTunnelOverMemoryDatachannel).
 func TestClientServerSOCKSConnectBlocksPrivateTargetByDefault(t *testing.T) {
 	echoAddr := startEchoServer(t)
 	rt := startMemoryTunnel(t, transportData, false)
 	defer rt.stop(t)
 
-	if code := socksConnectReplyCode(t, rt.socksAddr, echoAddr); code != 4 {
-		t.Fatalf("socks reply = %d, want 4 (host unreachable) for a loopback target", code)
+	conn, code := socksConnect(t, rt.socksAddr, echoAddr)
+	defer func() { _ = conn.Close() }()
+	if code != 0 {
+		t.Fatalf("socks reply = %d, want 0: the exit takes early data", code)
+	}
+	if _, err := conn.Write([]byte("ping")); err != nil {
+		t.Fatalf("write early data: %v", err)
+	}
+	echo := make([]byte, 4)
+	if n, err := io.ReadFull(conn, echo); err == nil {
+		t.Fatalf("read %q through a loopback target the exit must refuse", echo[:n])
 	}
 }
 
-// socksConnectReplyCode sends one SOCKS5 CONNECT for an IPv4 target and
-// returns the reply code, success or not.
-func socksConnectReplyCode(t *testing.T, socksAddr, targetAddr string) byte {
+// socksConnect sends one SOCKS5 CONNECT for an IPv4 target and returns the
+// connection and the reply code, success or not.
+func socksConnect(t *testing.T, socksAddr, targetAddr string) (net.Conn, byte) {
 	t.Helper()
 	dialer := net.Dialer{Timeout: 2 * time.Second}
 	conn, err := dialer.DialContext(context.Background(), "tcp4", socksAddr)
 	if err != nil {
 		t.Fatalf("dial socks: %v", err)
 	}
-	defer func() { _ = conn.Close() }()
 	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
 
 	if _, err = conn.Write([]byte{5, 1, 0}); err != nil {
@@ -63,5 +73,5 @@ func socksConnectReplyCode(t *testing.T, socksAddr, targetAddr string) byte {
 	if _, err = io.ReadFull(conn, reply); err != nil {
 		t.Fatalf("read socks connect reply: %v", err)
 	}
-	return reply[1]
+	return conn, reply[1]
 }
