@@ -45,6 +45,10 @@ const reorderHold = 300 * time.Millisecond
 // allocation in the reorder buffer's local free list.
 const maxRetainedRTPPayloadCap = 2 * 1024
 
+// maxFramePackets bounds how far takeFrame walks to find a frame's ends: a
+// full sample is defaultMaxPayloadSize over RTP packets of about 1.2 KB.
+const maxFramePackets = 64
+
 // maxAssembledFrameSize bounds one reassembled VP8 frame. The buffer only
 // resets on a start-of-partition bit, a sequence gap or a marker bit, so a
 // contiguous run of packets that never sets the marker grows it without limit
@@ -75,10 +79,23 @@ type reorderBuffer struct {
 	// gapSince is when the packets now held started waiting on a gap, zero
 	// while none waits (ai-generated: issue #12).
 	gapSince time.Time
+	// ahead, when set, takes a whole frame held behind a gap at once, in
+	// order; taken marks its sequence numbers for drain to step over, and
+	// run is takeFrame's scratch. KCP orders its segments itself, so a lost
+	// packet costs only its own frame, not a hold on every frame behind it:
+	// the acks and the repeats that repair the loss among them.
+	//
+	// ai-generated: ahead, taken and run (frames past a gap).
+	ahead func([]*rtp.Packet)
+	taken map[uint16]struct{}
+	run   []*rtp.Packet
 }
 
 func newReorderBuffer() *reorderBuffer {
-	return &reorderBuffer{pkts: make(map[uint16]*rtp.Packet, reorderWindow)}
+	return &reorderBuffer{
+		pkts:  make(map[uint16]*rtp.Packet, reorderWindow),
+		taken: make(map[uint16]struct{}),
+	}
 }
 
 // push adds pkt and synchronously delivers packets now available in strict
@@ -95,6 +112,9 @@ func (b *reorderBuffer) push(pkt *rtp.Packet, deliver func(*rtp.Packet)) {
 	if seqLess(pkt.SequenceNumber, b.nextSeq) {
 		return
 	}
+	if _, done := b.taken[pkt.SequenceNumber]; done {
+		return // a repair of a frame already delivered ahead
+	}
 	if old := b.pkts[pkt.SequenceNumber]; old != nil {
 		b.recycle(old)
 	}
@@ -104,22 +124,78 @@ func (b *reorderBuffer) push(pkt *rtp.Packet, deliver func(*rtp.Packet)) {
 	// longer than reorderHold, means the head sequence is genuinely lost:
 	// skip forward to the oldest buffered packet.
 	now := time.Now()
-	if len(b.pkts) > reorderWindow || (!b.gapSince.IsZero() && now.Sub(b.gapSince) > reorderHold) {
+	if b.held() > reorderWindow || (!b.gapSince.IsZero() && now.Sub(b.gapSince) > reorderHold) {
 		b.skipToOldest()
 		b.gapSince = time.Time{}
 	}
 	b.drain(deliver)
+	if _, waiting := b.pkts[pkt.SequenceNumber]; waiting && b.ahead != nil {
+		if run := b.takeFrame(pkt.SequenceNumber); run != nil {
+			b.ahead(run)
+			for _, taken := range run {
+				b.recycle(taken)
+			}
+		}
+	}
 	switch {
-	case len(b.pkts) == 0:
+	case b.held() == 0:
 		b.gapSince = time.Time{}
 	case b.gapSince.IsZero():
 		b.gapSince = now
 	}
 }
 
-// drain pops contiguous packets starting at nextSeq.
+// held counts what waits on the gap, frames already taken ahead included.
+func (b *reorderBuffer) held() int {
+	return len(b.pkts) + len(b.taken)
+}
+
+// takeFrame returns, in order, the packets of the frame seq belongs to when
+// all of them are held, from the start of its partition to the marker, and
+// marks them taken; nil while any is missing.
+//
+// ai-generated: the whole function (frames past a gap).
+func (b *reorderBuffer) takeFrame(seq uint16) []*rtp.Packet {
+	start := seq
+	for n := 0; !vp8PartitionStart(b.pkts[start]); n++ {
+		if n >= maxFramePackets || b.pkts[start-1] == nil {
+			return nil
+		}
+		start--
+	}
+	b.run = b.run[:0]
+	for next := start; ; next++ {
+		pkt := b.pkts[next]
+		if pkt == nil || len(b.run) >= maxFramePackets {
+			return nil
+		}
+		b.run = append(b.run, pkt)
+		if pkt.Marker {
+			break
+		}
+	}
+	for _, pkt := range b.run {
+		delete(b.pkts, pkt.SequenceNumber)
+		b.taken[pkt.SequenceNumber] = struct{}{}
+	}
+	return b.run
+}
+
+// vp8PartitionStart reports whether pkt carries the S bit of its VP8
+// payload descriptor: the first packet of a frame this transport sends.
+func vp8PartitionStart(pkt *rtp.Packet) bool {
+	return pkt != nil && len(pkt.Payload) > 0 && pkt.Payload[0]&0x10 != 0
+}
+
+// drain pops contiguous packets starting at nextSeq, stepping over those
+// already delivered ahead.
 func (b *reorderBuffer) drain(deliver func(*rtp.Packet)) {
 	for {
+		if _, done := b.taken[b.nextSeq]; done {
+			delete(b.taken, b.nextSeq)
+			b.nextSeq++
+			continue
+		}
 		pkt, ok := b.pkts[b.nextSeq]
 		if !ok {
 			return
@@ -161,11 +237,18 @@ func (b *reorderBuffer) recycle(pkt *rtp.Packet) {
 }
 
 // skipToOldest advances nextSeq to the lowest buffered sequence, abandoning a
-// lost packet so drain can make progress.
+// lost packet so drain can make progress. Taken sequences count, so none is
+// skipped past and left behind.
 func (b *reorderBuffer) skipToOldest() {
 	first := true
 	var oldest uint16
 	for seq := range b.pkts {
+		if first || seqLess(seq, oldest) {
+			oldest = seq
+			first = false
+		}
+	}
+	for seq := range b.taken {
 		if first || seqLess(seq, oldest) {
 			oldest = seq
 			first = false
@@ -267,9 +350,16 @@ const mimeTypeRED = "video/red"
 // ai-generated: reuse the RTP parser and its header extension storage between reads.
 func (p *streamTransport) readVP8Track(track *webrtc.TrackRemote) {
 	red := strings.EqualFold(track.Codec().MimeType, mimeTypeRED)
-	var state vp8FrameState
+	var state, ahead vp8FrameState
 	var pkt rtp.Packet
 	reorder := newReorderBuffer()
+	reorder.ahead = func(run []*rtp.Packet) {
+		for _, ordered := range run {
+			if frame := ahead.processRTPPacket(ordered); frame != nil {
+				p.handleIncomingFrame(frame)
+			}
+		}
+	}
 	buf := make([]byte, rtpBufSize)
 	var rtpCount, frameCount int
 
