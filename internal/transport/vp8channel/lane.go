@@ -80,15 +80,6 @@ const (
 	// four, not the last: a second that got nothing through would otherwise
 	// pace the lane down to nothing, and nothing would get through after it.
 	queuePaceGain = 1.25
-	// ai-generated: packetFrameMTU and its comment.
-	// A transport with a batch size of 1 writes every KCP packet as a frame
-	// of its own, and its KCP MTU is what lets that frame fit one RTP packet:
-	// 1188 bytes of payload after the RTP header, less pion's VP8 descriptor
-	// of up to 4, the epoch header and the CRC. A frame is lost whole with
-	// any of its RTP packets, so a sample of 43 packets turned 1% of RTP
-	// packets lost into a third of the segments; one packet a frame loses
-	// only the segment the lost RTP packet carried.
-	packetFrameMTU = 1188 - 4 - epochHdrLen - wireCRCLen
 	// ai-generated: repeatMax, repeatAfter and their comment.
 	// A light sample that carries pushes, one with nothing queued behind it,
 	// is written again once repeatAfter has passed. Behind a lost packet with
@@ -258,20 +249,6 @@ func (l *dataLane) sendAcks(p *streamTransport, write func([]byte) bool) bool {
 		default:
 			return false
 		}
-	}
-	if p.perPacket() { // ai-generated: the packet frames, every answer a frame.
-		_ = write(first.data)
-		first.release()
-		for range p.fullPackets() {
-			select {
-			case next := <-l.acks:
-				_ = p.writeSampleFor(next.data, 0)
-				next.release()
-			default:
-				return true
-			}
-		}
-		return true
 	}
 	if !p.canBatch(first.data) {
 		_ = write(first.data)
@@ -480,22 +457,7 @@ func (l *dataLane) windowRate(sent, delivered float64, rtt int32) (float64, int)
 // every frame.
 func (p *streamTransport) fullRate() float64 {
 	sample := min(p.batchSize*(epochHdrLen+kcpMTU+wireCRCLen), defaultMaxPayloadSize)
-	if p.perPacket() { // ai-generated: the packet frames.
-		sample = p.fullPackets() * (epochHdrLen + packetFrameMTU + wireCRCLen)
-	}
 	return float64(sample) * float64(time.Second) / float64(p.frameInterval)
-}
-
-// perPacket says the transport writes every KCP packet as a frame of its own
-// (a batch size of 1), and dataMTU is its data sessions' KCP MTU for that.
-// ai-generated: the packet frames, see packetFrameMTU.
-func (p *streamTransport) perPacket() bool { return p.batchSize == 1 }
-
-func (p *streamTransport) dataMTU() int {
-	if p.perPacket() {
-		return packetFrameMTU
-	}
-	return kcpMTU
 }
 
 // fullPackets is how many KCP packets an uncapped sample carries: the batch
@@ -506,9 +468,6 @@ func (p *streamTransport) dataMTU() int {
 // (olcrtc#26) measures the publisher's bucket in; this reads the same number
 // in packets.
 func (p *streamTransport) fullPackets() int {
-	if p.perPacket() { // ai-generated: as many frames a flush as a sample holds packets.
-		return defaultMaxPayloadSize / (epochHdrLen + packetFrameMTU + wireCRCLen)
-	}
 	room := (defaultMaxPayloadSize - epochHdrLen - len(kcpBatchMagic)) / (batchLenLen + kcpMTU + wireCRCLen)
 	return max(min(p.batchSize, room), 1)
 }
@@ -525,9 +484,6 @@ func (l *dataLane) send(p *streamTransport, now int64, write func([]byte) bool) 
 	if frame == nil {
 		l.heldBack = false
 		return false
-	}
-	if p.perPacket() {
-		return l.sendPackets(p, now, write, frame, limit)
 	}
 	// ai-generated: the rate check (olcrtc#26). What a lane pushes counts
 	// against the publisher's ceiling, so it waits in the lane's own pending
@@ -559,55 +515,6 @@ func (l *dataLane) send(p *streamTransport, now int64, write func([]byte) bool) 
 	l.qpace.wrote(now, len(sample))
 	l.pace.held = l.pace.held || (l.pace.rate > 0 && (l.pending != nil || len(l.out) > 0))
 	return true
-}
-
-// sendPackets is send for a transport that writes each packet as a frame of
-// its own: up to limit packets, the first advancing the RTP clock a frame,
-// the rest on its timestamp, each waiting for the publisher's bucket as a
-// sample does.
-//
-// ai-generated: the whole function (packet frames).
-func (l *dataLane) sendPackets(
-	p *streamTransport, now int64, write func([]byte) bool, frame *packetBuffer, limit int,
-) bool {
-	written := 0
-	for ; frame != nil; frame = l.nextPacket(now, written, limit) {
-		if !p.readyToSend(frame.data) {
-			l.pending = frame
-			break
-		}
-		var ok bool
-		if written == 0 {
-			ok = write(frame.data)
-		} else {
-			ok = p.writeSampleFor(frame.data, 0)
-		}
-		pushed := ok && l.notePushes(frame.data)
-		if pushed && l.pushSince == 0 {
-			l.pushSince = now
-		}
-		if written == 0 {
-			l.keepRepeat(frame.data, pushed, now)
-		} else {
-			l.repeat = l.repeat[:0]
-		}
-		l.pace.wrote(now, len(frame.data))
-		l.qpace.wrote(now, len(frame.data))
-		written++
-		frame.releaseSent()
-	}
-	l.heldBack = l.pending != nil
-	l.pace.held = l.pace.held || (l.pace.rate > 0 && (l.pending != nil || len(l.out) > 0))
-	return written > 0
-}
-
-// nextPacket is the next packet sendPackets writes, nil once it has written
-// limit. ai-generated: the packet frames.
-func (l *dataLane) nextPacket(now int64, written, limit int) *packetBuffer {
-	if written >= limit {
-		return nil
-	}
-	return l.takeFresh(now)
 }
 
 // sift drops the pushes already queued when the lane goes dark, keeping what

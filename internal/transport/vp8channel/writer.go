@@ -70,14 +70,6 @@ func (w *writerState) writeSample(data []byte) bool {
 // VP8 payloader copies sample.Data into RTP payloads during Packetize, before
 // WriteSample returns, so the writer can release its packet buffer afterward.
 func (p *streamTransport) writeSampleLocked(data []byte) bool {
-	return p.writeSampleFor(data, p.frameInterval)
-}
-
-// writeSampleFor is writeSampleLocked with the time the sample advances the
-// RTP clock by: the packets of one flush after its first go out at zero, so a
-// lane writing a frame per packet keeps the clock at the frame cadence.
-// ai-generated: the duration parameter (packet frames).
-func (p *streamTransport) writeSampleFor(data []byte, duration time.Duration) bool {
 	p.writeMu.Lock()
 	defer p.writeMu.Unlock()
 	// ai-generated: the charge and the written result (olcrtc#26). Every
@@ -90,7 +82,7 @@ func (p *streamTransport) writeSampleFor(data []byte, duration time.Duration) bo
 	} else {
 		written = p.track.WriteSample(media.Sample{
 			Data:     data,
-			Duration: duration,
+			Duration: p.frameInterval,
 		}) == nil
 	}
 	if written {
@@ -155,10 +147,6 @@ func (w *writerState) drainDatagram() bool {
 		}
 		w.pendingDatagram = nil
 	}
-	// ai-generated: the duration. Every sample after the first of a drain
-	// goes out on the first's timestamp, so a burst of datagrams written a
-	// frame each does not run the RTP clock ahead.
-	duration := w.p.frameInterval
 	for {
 		select {
 		case frame := <-w.p.datagram:
@@ -171,11 +159,10 @@ func (w *writerState) drainDatagram() bool {
 			}
 			sample := w.batchDatagramSampleFrom(w.p.datagram, frame)
 			w.idleTicks = 0
-			if !w.p.writeSampleFor(sample, duration) {
+			if !w.writeSample(sample) {
 				w.pendingDatagram = sample
 				return false
 			}
-			duration = 0
 		default:
 			return true
 		}
