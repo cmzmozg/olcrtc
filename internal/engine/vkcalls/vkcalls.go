@@ -293,6 +293,7 @@ func (s *Session) negotiate(ctx context.Context, gen *generation, offer string) 
 			case <-gen.connected:
 			default:
 				close(gen.connected)
+				go logICEPair(pc)
 			}
 		case webrtc.PeerConnectionStateFailed, webrtc.PeerConnectionStateClosed:
 			s.reconnectAttempt(gen)
@@ -302,6 +303,26 @@ func (s *Session) negotiate(ctx context.Context, gen *generation, offer string) 
 	})
 
 	return s.acceptOffer(ctx, gen, offer)
+}
+
+// logICEPair says, once the call has settled, which candidate pair it took
+// and that pair's STUN round trip: a relayed pair puts a TURN hop on every
+// packet, and the round trip is this side's leg to VK alone.
+//
+// ai-generated: the whole function (latency lab).
+func logICEPair(pc *webrtc.PeerConnection) {
+	time.Sleep(3 * time.Second)
+	stats := pc.GetStats()
+	for _, report := range stats {
+		pair, ok := report.(webrtc.ICECandidatePairStats)
+		if !ok || !pair.Nominated || pair.State != webrtc.StatsICECandidatePairStateSucceeded {
+			continue
+		}
+		local, _ := stats[pair.LocalCandidateID].(webrtc.ICECandidateStats)
+		remote, _ := stats[pair.RemoteCandidateID].(webrtc.ICECandidateStats)
+		logger.Infof("vkcalls: ice pair local=%s remote=%s rtt=%.0fms",
+			local.CandidateType, remote.CandidateType, pair.CurrentRoundTripTime*1000)
+	}
 }
 
 // openControlChannels creates the two service data channels the engine
