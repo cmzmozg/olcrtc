@@ -75,7 +75,7 @@ func (c *Client) startControlLoop(
 		Progress: func() uint64 {
 			c.sessMu.RLock()
 			defer c.sessMu.RUnlock()
-			return c.conn.PayloadBytes()
+			return c.conn.PayloadBytes() + c.lanePayloadBytes()
 		},
 		// The data conn, not the control one: the control plane is a separate
 		// KCP session and stays healthy while the data plane is wedged. That

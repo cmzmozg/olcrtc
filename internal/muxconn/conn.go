@@ -72,6 +72,7 @@ func (closedReadError) Unwrap() []error { return []error{io.EOF, ErrClosed} }
 const (
 	dataRecordAAD    = "olcrtc/muxconn/v2/data"
 	controlRecordAAD = "olcrtc/muxconn/v2/control"
+	laneRecordAAD    = "olcrtc/muxconn/v2/lane"
 
 	// inboundQueue is the buffered capacity of the Push -> Read pipeline.
 	// It absorbs short Read stalls without applying back-pressure to the
@@ -328,6 +329,55 @@ func NewPeerControlUnboundGrouped(ln transport.Transport, g *PinGroup, peerID st
 		in:      make(chan *[]byte, inboundQueue),
 		closeCh: make(chan struct{}),
 	}
+	return c
+}
+
+// NewLaneGrouped wires a Conn over the transport's second data lane
+// (transport.LanePlane), batched as the data conn is. Its records carry their
+// own AAD, so one cannot be moved onto the other lane. Returns nil if the
+// transport has no second lane.
+//
+// ai-generated: the whole function (second lane).
+func NewLaneGrouped(ln transport.Transport, g *PinGroup) *Conn {
+	lp, ok := ln.(transport.LanePlane)
+	if !ok {
+		return nil
+	}
+	c := &Conn{
+		ln:      ln,
+		send:    lp.LaneSend,
+		canSend: lp.LaneCanSend,
+		group:   g,
+		aad:     []byte(laneRecordAAD),
+		in:      make(chan *[]byte, inboundQueue),
+		closeCh: make(chan struct{}),
+	}
+	lp.SetLaneOnData(func(data []byte) { c.Push(data) })
+	c.startBatching(ln.Features())
+	return c
+}
+
+// NewPeerLaneUnboundGrouped wires a Conn to a peer's second data lane. As
+// with NewPeerControlUnbound, the caller demultiplexes the lane's one
+// callback and feeds the conn via Push. Returns nil if the transport has no
+// per-peer second lane.
+//
+// ai-generated: the whole function (second lane).
+func NewPeerLaneUnboundGrouped(ln transport.Transport, g *PinGroup, peerID string) *Conn {
+	lp, ok := ln.(transport.PeerLanePlane)
+	if !ok {
+		return nil
+	}
+	c := &Conn{
+		ln:      ln,
+		send:    func(data []byte) error { return lp.LaneSendTo(peerID, data) },
+		canSend: func() bool { return lp.LanePeerCanSend(peerID) },
+		group:   g,
+		aad:     []byte(laneRecordAAD),
+		in:      make(chan *[]byte, inboundQueue),
+		closeCh: make(chan struct{}),
+	}
+	c.startBatching(ln.Features())
 	return c
 }
 

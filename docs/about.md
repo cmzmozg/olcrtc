@@ -119,7 +119,7 @@ openssl rand -hex 32
 
 HKDF-SHA256 derives independent `olcrtc/v2/client-to-server` and `olcrtc/v2/server-to-client` keys from the PSK. Client and server use opposite send and receive keys, so reflected records fail authentication.
 
-An OLC2 record contains the `OLC2` magic, a big-endian 64-bit counter, a 16-byte random sender prefix, ciphertext and a Poly1305 tag. Data and control records use different AEAD associated data: `olcrtc/muxconn/v2/data` and `olcrtc/muxconn/v2/control`.
+An OLC2 record contains the `OLC2` magic, a big-endian 64-bit counter, a 16-byte random sender prefix, ciphertext and a Poly1305 tag. Data, control and second-lane records use different AEAD associated data: `olcrtc/muxconn/v2/data`, `olcrtc/muxconn/v2/control` and `olcrtc/muxconn/v2/lane`.
 
 Authenticated records pass through a 64-record replay window per sender prefix. Replay state is shared by data, control and reconnect connections, limited to 256 sender prefixes, and is not changed by unauthenticated input. Counter wrap is rejected.
 
@@ -139,6 +139,8 @@ CONTROL_PING <-> CONTROL_PONG
 If the control pong does not arrive several times in a row, the runtime rebuilds the smux session or hands control to the failover supervisor.
 
 Every TCP connection runs on its own smux stream: the client writes a JSON `connect` request, the server dials the target and answers with a one-byte ack. When `SERVER_WELCOME` announces `early-data`, the client does not wait for the ack: it answers the app with success at once, and the connection's first bytes (a TLS ClientHello, say) follow the request on the stream. The server forwards them to the target once connected, and the client reads the ack as the first byte of the reply; a refusal closes the connection. A new connection saves one tunnel round trip this way. IPv6 literals still wait for the ack, so a refusal reaches the app as a SOCKS reply. An old server announces nothing, and a new client talks to it as before.
+
+On vp8channel, a server whose `SERVER_WELCOME` announces `lanes` takes streams on a second data lane too: a KCP session of its own (conversation `0xC0FFEE02`) on the same track and epochs, with its own smux session. The client opens a new stream, a TCP connection or a DNS query, on whichever lane carried less in about the last second (queued packets, packets in flight and packets received). A short request then neither queues behind a bulk transfer in one KCP send queue nor waits at the peer for a segment of that transfer lost ahead of it. The server builds the lane's session on the lane's first frame from a peer that has a session, so an old client costs it nothing; an old server announces nothing, and a new client keeps to one lane.
 
 ## YAML
 

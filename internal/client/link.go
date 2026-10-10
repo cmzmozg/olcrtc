@@ -120,6 +120,7 @@ func (c *Client) bringUpLink(ctx context.Context, cfg Config, cancel context.Can
 		return waitErr
 	}
 	logger.Infof("session %s opened (device=%s)", sessionID, c.deviceID)
+	c.attachLane(pair, welcome)
 	c.sessMu.Lock()
 	c.earlyData.Store(welcome.Has(handshake.FeatureEarlyData))
 	c.installPairLocked(pair)
@@ -742,6 +743,7 @@ func (c *Client) tryReopenSession(
 		return roundStopped
 	}
 	logger.Infof("session %s reopened (device=%s)", sessionID, c.deviceID)
+	c.attachLane(pair, welcome)
 	c.sessMu.Lock()
 	c.earlyData.Store(welcome.Has(handshake.FeatureEarlyData))
 	c.installPairLocked(pair)

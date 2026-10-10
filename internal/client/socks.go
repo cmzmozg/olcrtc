@@ -152,7 +152,7 @@ func (c *Client) prepareTunnel(ctx context.Context, job connectJob) tunnelPrep {
 				parked = false
 				c.unpark()
 			}
-			return c.openTunnel(session, job)
+			return c.openTunnel(c.streamSession(session), job)
 		}
 		if !parked {
 			if !c.park() {

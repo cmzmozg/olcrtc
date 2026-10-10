@@ -72,6 +72,7 @@ func (c *Client) tryDNSOverStream(
 	if sess == nil || sess.IsClosed() || sid == "" {
 		return false
 	}
+	sess = c.streamSession(sess)
 	if c.dnsInFlight.Add(1) > dnsMaxInFlight {
 		c.dnsInFlight.Add(-1)
 		return false

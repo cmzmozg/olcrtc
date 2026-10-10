@@ -62,9 +62,13 @@ type peerSession struct {
 	controlSess   *smux.Session
 	controlStrm   *smux.Stream
 	controlStop   context.CancelFunc
-	sessionID     string
-	deviceID      string
-	closed        bool
+	// laneConn and laneSess are the peer's second data lane, built on its
+	// first frame (peerLane). ai-generated (second lane).
+	laneConn  *muxconn.Conn
+	laneSess  *smux.Session
+	sessionID string
+	deviceID  string
+	closed    bool
 }
 
 func newPeerSession(peerID string, needsControl bool, group *muxconn.PinGroup) *peerSession {
@@ -160,6 +164,8 @@ type teardown struct {
 	controlSess *smux.Session
 	controlStrm *smux.Stream
 	controlStop context.CancelFunc
+	laneConn    *muxconn.Conn
+	laneSess    *smux.Session
 	sessionID   string
 }
 
@@ -170,7 +176,8 @@ func (ps *peerSession) closeSnapshot() teardown {
 	return teardown{
 		conn: ps.conn, session: ps.session, controlConn: ps.controlConn,
 		controlSess: ps.controlSess, controlStrm: ps.controlStrm,
-		controlStop: ps.controlStop, sessionID: ps.sessionID,
+		controlStop: ps.controlStop, laneConn: ps.laneConn, laneSess: ps.laneSess,
+		sessionID: ps.sessionID,
 	}
 }
 
@@ -183,6 +190,9 @@ func (t teardown) closeConns() {
 	}
 	if t.controlConn != nil {
 		_ = t.controlConn.Close()
+	}
+	if t.laneConn != nil {
+		_ = t.laneConn.Close()
 	}
 }
 
@@ -444,7 +454,7 @@ func (s *Server) acceptPeerHandshake(ctx context.Context, peer *peerSession) {
 			return
 		}
 		_ = stream.SetDeadline(time.Now().Add(handshake.DefaultTimeout))
-		hello, sessionID, err := handshake.Server(stream, s.authHook, s.localPeerID(), handshake.FeatureEarlyData)
+		hello, sessionID, err := handshake.Server(stream, s.authHook, s.localPeerID(), s.peerFeatures()...)
 		_ = stream.SetDeadline(time.Time{})
 		if err != nil {
 			_ = stream.Close()
@@ -490,7 +500,7 @@ func (s *Server) startPeerControlLoop(ctx context.Context, peer *peerSession, st
 			}
 			s.endPeer(peer, "liveness", true)
 		},
-		Progress: func() uint64 { return peer.dataConn().PayloadBytes() },
+		Progress: func() uint64 { return peer.dataConn().PayloadBytes() + peer.lanePayloadBytes() },
 	}
 	s.goTracked(func() {
 		defer func() { _ = stream.Close() }()
@@ -716,6 +726,9 @@ func (s *Server) endPeerSession(peer *peerSession, reason string, notify bool) {
 		if teardown.controlSess != nil {
 			_ = teardown.controlSess.Close()
 		}
+		if teardown.laneSess != nil {
+			_ = teardown.laneSess.Close()
+		}
 		if teardown.controlStrm != nil {
 			_ = teardown.controlStrm.Close()
 		}
@@ -724,6 +737,9 @@ func (s *Server) endPeerSession(peer *peerSession, reason string, notify bool) {
 		}
 		if teardown.conn != nil {
 			_ = teardown.conn.Close()
+		}
+		if teardown.laneConn != nil {
+			_ = teardown.laneConn.Close()
 		}
 		if teardown.sessionID != "" {
 			s.onClose(teardown.sessionID, reason)

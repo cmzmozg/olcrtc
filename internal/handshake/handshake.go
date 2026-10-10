@@ -46,6 +46,12 @@ const challengeSize = 16
 // ai-generated: the feature flag (optimistic connect).
 const FeatureEarlyData = "early-data"
 
+// FeatureLanes in a welcome says the server takes streams on the transport's
+// second data lane too, so the client may open them there.
+//
+// ai-generated: the feature flag (second lane).
+const FeatureLanes = "lanes"
+
 // MaxMessageSize caps a single handshake frame. 64 KiB is comfortably larger
 // than any legitimate HELLO/WELCOME payload and prevents memory blowups from
 // malicious peers.

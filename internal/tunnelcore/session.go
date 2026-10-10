@@ -26,12 +26,33 @@ const (
 	ServerRole
 )
 
-// SessionPair owns the data session and its optional isolated control session.
+// SessionPair owns the data session, its optional isolated control session
+// and its optional second data lane (AttachLane).
 type SessionPair struct {
 	DataConn       *muxconn.Conn
 	DataSession    *smux.Session
 	ControlConn    *muxconn.Conn
 	ControlSession *smux.Session
+	LaneConn       *muxconn.Conn
+	LaneSession    *smux.Session
+}
+
+// AttachLane builds a data session over the transport's second lane, under
+// the data conn's pin group, when the transport has one.
+//
+// ai-generated: the whole method (second lane).
+func (p *SessionPair) AttachLane(tr transport.Transport, role SessionRole) error {
+	conn := muxconn.NewLaneGrouped(tr, p.DataConn.Group())
+	if conn == nil {
+		return nil
+	}
+	session, err := NewSession(conn, role, runtime.SmuxConfigFor(tr))
+	if err != nil {
+		_ = conn.Close()
+		return fmt.Errorf("lane smux session: %w", err)
+	}
+	p.LaneConn, p.LaneSession = conn, session
+	return nil
 }
 
 // NewSessionPair builds data and optional isolated-control muxconn/smux sessions
@@ -147,6 +168,9 @@ func (p *SessionPair) CloseConns() error {
 	if p.ControlConn != nil {
 		errs = append(errs, p.ControlConn.Close())
 	}
+	if p.LaneConn != nil {
+		errs = append(errs, p.LaneConn.Close())
+	}
 	return errors.Join(errs...)
 }
 
@@ -161,6 +185,9 @@ func (p *SessionPair) Close() error {
 	}
 	if p.ControlSession != nil && p.ControlSession != p.DataSession {
 		errs = append(errs, p.ControlSession.Close())
+	}
+	if p.LaneSession != nil {
+		errs = append(errs, p.LaneSession.Close())
 	}
 	if err := p.CloseConns(); err != nil {
 		errs = append(errs, err)

@@ -95,6 +95,7 @@ func (s *Server) installSession() {
 func (s *Server) installControlSession(ctx context.Context) {
 	if peerControl, ok := s.ln.(transport.PeerControlPlane); ok {
 		s.installPeerControlPlane(peerControl)
+		s.installPeerLanePlane()
 		return
 	}
 	group := muxconn.NewPinGroup(s.ring)
