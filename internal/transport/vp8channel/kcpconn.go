@@ -86,6 +86,10 @@ type kcpConn struct {
 	lastAck   atomic.Int64
 	holdEvery atomic.Int64
 	probeAt   atomic.Int64
+	// acked counts the pushes answered for the first time, the delivery
+	// rate the data lane sizes its window by while the path queues.
+	// ai-generated: the delivered rate.
+	acked atomic.Uint64
 	// probeMu guards probeBuf, the newest push held back, which probe()
 	// sends again when the next one is due. probeOut is probe()'s copy of
 	// it, touched by the lane's writer alone.
@@ -388,10 +392,25 @@ func (c *kcpConn) probe() {
 }
 
 func (c *kcpConn) WriteTo(p []byte, _ net.Addr) (int, error) {
-	if c.withheld(p) { // ai-generated: issue #12, as a full path would drop it
-		return len(p), nil
+	size := len(p)
+	// ai-generated: the split answers. kcp-go writes its acknowledgements
+	// ahead of the pushes in one packet, and a packet with a push waits on
+	// out behind everything queued: while this side sends bulk, the peer's
+	// pushes went unanswered for as long as the queue took to drain, seconds
+	// on a slow uplink, and the peer's lane counted its path dark. The
+	// answers go on acks instead, which the lane writes ahead of the data.
+	if c.acks != nil {
+		if n := answerPrefix(p); n > 0 && n < len(p) && c.queueAnswers(p[:n]) {
+			p = p[n:]
+		}
 	}
-	return c.enqueue(p)
+	if c.withheld(p) { // ai-generated: issue #12, as a full path would drop it
+		return size, nil
+	}
+	if _, err := c.enqueue(p); err != nil {
+		return 0, err
+	}
+	return size, nil
 }
 
 // wrap builds the wire packet for a KCP packet. Layout: [epoch header][KCP
@@ -411,15 +430,16 @@ func (c *kcpConn) wrap(p []byte) *packetBuffer {
 
 // enqueue wraps a KCP packet for the wire and queues it for the lane.
 func (c *kcpConn) enqueue(p []byte) (int, error) {
+	size := len(p)
 	if c.queuedDuplicate(p) { // ai-generated: spurious RTO retransmissions.
 		c.spurious.Add(1)
-		return len(p), nil
+		return size, nil
 	}
 	packet := c.wrap(p)
 	if c.acks != nil && answers(p) && !pushes(p) { // ai-generated: issue #12
 		select {
 		case c.acks <- packet:
-			return len(p), nil
+			return size, nil
 		default: // full: it waits with the data
 		}
 	}
@@ -448,7 +468,7 @@ func (c *kcpConn) enqueue(p []byte) (int, error) {
 			default:
 			}
 		}
-		return len(p), nil
+		return size, nil
 	case <-c.closed:
 		packet.release()
 		return 0, net.ErrClosed
@@ -456,6 +476,35 @@ func (c *kcpConn) enqueue(p []byte) (int, error) {
 		packet.release()
 		return 0, TimeoutError{}
 	}
+}
+
+// queueAnswers puts a packet of answers on acks, reporting false when acks
+// is full. ai-generated: the split answers.
+func (c *kcpConn) queueAnswers(p []byte) bool {
+	packet := c.wrap(p)
+	select {
+	case c.acks <- packet:
+		return true
+	default:
+		packet.release()
+		return false
+	}
+}
+
+// answerPrefix is the length of the answers a KCP packet starts with, zero
+// when it starts with something else or a length runs past its end.
+// ai-generated: the split answers.
+func answerPrefix(segs []byte) int {
+	rest := segs
+	for len(rest) >= kcp.IKCP_OVERHEAD && answers(rest) {
+		size := binary.LittleEndian.Uint32(rest[kcpLenOff:])
+		body := rest[kcp.IKCP_OVERHEAD:]
+		if uint64(size) > uint64(len(body)) {
+			return 0
+		}
+		rest = body[size:]
+	}
+	return len(segs) - len(rest)
 }
 
 // ai-generated: spurious RTO retransmission suppression (queuedDuplicate,
@@ -671,6 +720,7 @@ func (c *kcpConn) noteAcks(body []byte) {
 			delete(c.parked, sn)
 			if at, ok := c.sentAt[sn]; ok {
 				delete(c.sentAt, sn)
+				c.acked.Add(1)
 				if first, again := c.firstAt[sn]; again {
 					delete(c.firstAt, sn)
 					c.sampleRTT(now - first)

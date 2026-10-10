@@ -271,30 +271,30 @@ func TestKCPConnHoldsPushesBackButNotAnswers(t *testing.T) {
 
 	write(kcpSegments(nil, ack))
 	write(kcpSegments([]byte("d"), push))
-	write(kcpSegments([]byte("d"), ack, push))
-	if len(acks) != 1 || len(out) != 2 {
-		t.Fatalf("acks=%d out=%d, want the lone acknowledgement apart and the rest with the data", len(acks), len(out))
+	write(kcpSegments([]byte("d"), ack, push)) // the acknowledgement split off
+	if len(acks) != 2 || len(out) != 2 {
+		t.Fatalf("acks=%d out=%d, want every acknowledgement apart and the pushes with the data", len(acks), len(out))
 	}
 
 	c.hold(time.Hour)
-	write(kcpSegments([]byte("d"), push)) // held back
-	write(kcpSegments([]byte("d"), push)) // held back, and kept as the probe
-	write(kcpSegments([]byte("d"), ack, push))
+	write(kcpSegments([]byte("d"), push))      // held back
+	write(kcpSegments([]byte("d"), push))      // held back
+	write(kcpSegments([]byte("d"), ack, push)) // its push held back, and kept as the probe
 	write(kcpSegments(nil, ack))
-	if len(out) != 3 || len(acks) != 2 {
+	if len(out) != 2 || len(acks) != 4 {
 		t.Fatalf("while held: out=%d acks=%d, want only what answers the peer", len(out), len(acks))
 	}
 	c.probe()
-	if len(out) != 4 {
+	if len(out) != 3 {
 		t.Fatalf("after the first probe: out=%d, want the push held back sent again", len(out))
 	}
 	c.probe()
-	if len(out) != 4 {
+	if len(out) != 3 {
 		t.Fatalf("out=%d, want at most one probe per interval", len(out))
 	}
 	c.hold(0)
 	write(kcpSegments([]byte("d"), push))
-	if len(out) != 5 {
+	if len(out) != 4 {
 		t.Fatalf("after the hold: out=%d, want the push through", len(out))
 	}
 }

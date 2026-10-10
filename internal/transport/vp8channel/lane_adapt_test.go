@@ -2,6 +2,7 @@ package vp8channel
 
 import (
 	"testing"
+	"time"
 )
 
 // ai-generated: tests for the adaptive send window of an uncapped lane.
@@ -77,9 +78,51 @@ func TestAdaptRemembersTheShortestRoundTrip(t *testing.T) {
 	rtt = 900 // a queue behind the session inflates its round trip
 	now += int64(adaptEvery)
 	l.pace.wrote(now, 4<<20)
+	l.seen.acked.Add(3000) // and all of it got through
 	l.adapt(p, now)
 	rate := float64(4 << 20)
 	if want := int(2*rate*0.2) / kcpMTU; got != want {
 		t.Fatalf("window=%d, want %d from the 200 ms minimum, not 900", got, want)
+	}
+}
+
+// ai-generated: the queue check and the delivered rate.
+func TestAdaptFollowsWhatIsDeliveredWhileThePathQueues(t *testing.T) {
+	p := &streamTransport{sendWindow: kcpSndWnd}
+	rtt := int32(150)
+	got := new(int)
+	conn := &kcpConn{}
+	l := &dataLane{
+		window: func(segments int) { *got = segments },
+		srtt:   func() int32 { return rtt },
+		seen:   conn,
+	}
+	now := monoNow() + int64(adaptEvery)
+	step := func(written int, acked uint64) {
+		now += int64(adaptEvery)
+		l.pace.wrote(now, written)
+		conn.acked.Add(acked)
+		l.adapt(p, now)
+	}
+	step(2<<20, 300) // writes 2 MiB/s, the peer acknowledges 300 pushes a second
+	if *got != adaptFloor {
+		t.Fatalf("window=%d on a clear path, want the floor %d over what the lane writes", *got, adaptFloor)
+	}
+	delivered := int(2*float64(300*kcpMTU)*0.15) / kcpMTU
+	rtt = 150 + int32(queueBudget/time.Millisecond) + 50 // the path holds a queue
+	step(2<<20, 300)
+	if *got != delivered {
+		t.Fatalf("window=%d while the path queues, want %d from what was delivered", *got, delivered)
+	}
+	rtt = 150 // the queue drained, the lane still busy
+	step(2<<20, 300)
+	if *got != delivered {
+		t.Fatalf("window=%d once the queue drained, want it held at %d while the lane is busy", *got, delivered)
+	}
+	for range 5 { // quiet: the busiest second of the last four runs out
+		step(0, 0)
+	}
+	if *got != adaptFloor {
+		t.Fatalf("window=%d after the lane went quiet, want the floor %d back", *got, adaptFloor)
 	}
 }

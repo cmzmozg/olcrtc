@@ -56,6 +56,19 @@ const (
 	// download for 2.7 s on a 250 ms path, 512 for 0.7 s at the same rate.
 	adaptEvery = time.Second
 	adaptFloor = 512
+	// ai-generated: queueBudget and its comment.
+	// The floor is for the climb: a lane that writes little has a small
+	// window by twice its rate, and a burst would wait on it. Once the
+	// session's round trip runs more than queueBudget over the shortest it
+	// has seen, the path is holding a queue, and the floor only deepens it:
+	// on a phone's uplink at a few Mbit/s 512 segments are seconds, the
+	// answers to the peer's pushes wait behind them, and the peer counts
+	// its path dark. What the lane writes is no measure then either: a
+	// socket in front of a full modem takes far more than gets through. So
+	// until the lane goes quiet again its window is twice what the peer
+	// acknowledged over the shortest round trip, which settles a round trip
+	// of queue and grows as the path frees up.
+	queueBudget = 250 * time.Millisecond
 	// ai-generated: repeatMax, repeatAfter and their comment.
 	// A light sample that carries pushes, one with nothing queued behind it,
 	// is written again once repeatAfter has passed. Behind a lost packet with
@@ -105,6 +118,11 @@ type dataLane struct {
 	minRTT    int32
 	adapted   int
 	adaptedAt int64
+	// queuing holds from a round trip over queueBudget until the lane goes
+	// quiet, and acked is the conn's count at the last adapt. ai-generated:
+	// the queue check and the delivered rate.
+	queuing bool
+	acked   uint64
 	// name tells the lane apart in the log.
 	name string
 
@@ -240,7 +258,7 @@ func (l *dataLane) watch(p *streamTransport, now int64) bool {
 			l.seen.hold(0)
 		}
 		l.seen, l.pushSince, l.darkSince, l.pace, l.frames = conn, 0, 0, pace{}, frameCap{}
-		l.minRTT, l.adapted, l.adaptedAt = 0, 0, 0
+		l.minRTT, l.adapted, l.adaptedAt, l.acked, l.queuing = 0, 0, 0, 0, false
 	}
 	if conn == nil {
 		return false
@@ -255,7 +273,11 @@ func (l *dataLane) watch(p *streamTransport, now int64) bool {
 		conn.hold(cmp.Or(p.probeEvery, defaultProbeEvery))
 		l.sift()
 		frames := ""
-		if l.frames.halve(p.fullPackets()) {
+		// ai-generated: the busy check. A lane that wrote little before the
+		// spell did not lose its frames to the path: what went unanswered is
+		// the way back, a peer busy sending its own bulk. Halving its cap
+		// then only throttles the bulk it sends next.
+		if l.darkRate >= quietRate && l.frames.halve(p.fullPackets()) {
 			l.resize(p)
 			frames = ", " + l.frameNote()
 		}
@@ -316,19 +338,44 @@ func (l *dataLane) adapt(p *streamTransport, now int64) {
 	if l.srtt == nil || l.window == nil || l.seen == nil || now-l.adaptedAt < int64(adaptEvery) {
 		return
 	}
+	since := time.Duration(now - l.adaptedAt)
 	l.adaptedAt = now
-	if rtt := l.srtt(); rtt > 0 && (l.minRTT == 0 || rtt < l.minRTT) {
+	acked := l.seen.acked.Load()
+	delivered := float64((acked-l.acked)*kcpMTU) / since.Seconds()
+	l.acked = acked
+	rtt := l.srtt()
+	if rtt > 0 && (l.minRTT == 0 || rtt < l.minRTT) {
 		l.minRTT = rtt
 	}
 	if l.minRTT == 0 || l.darkSince != 0 || l.pace.rate > 0 || l.frames.limit > 0 {
 		return
 	}
-	bdp := l.pace.sentRate(now) * float64(l.minRTT) / 1000
-	segments := min(max(int(2*bdp)/kcpMTU, adaptFloor), p.sendWindow)
+	rate, floor := l.windowRate(l.pace.sentRate(now), delivered, rtt)
+	bdp := rate * float64(l.minRTT) / 1000
+	segments := min(max(int(2*bdp)/kcpMTU, floor), p.sendWindow)
 	if segments != l.adapted {
 		l.adapted = segments
 		l.window(segments)
 	}
+}
+
+// windowRate is the rate adapt sizes the window by and the floor under it:
+// what the lane writes over adaptFloor, or, from a round trip over
+// queueBudget until the lane goes quiet, the lower of that and what was
+// delivered over minCapWindow.
+//
+// ai-generated: the whole function (the queue check and the delivered rate).
+func (l *dataLane) windowRate(sent, delivered float64, rtt int32) (float64, int) {
+	switch {
+	case time.Duration(rtt-l.minRTT)*time.Millisecond > queueBudget:
+		l.queuing = true
+	case sent < quietRate:
+		l.queuing = false
+	}
+	if l.queuing {
+		return min(sent, delivered), minCapWindow
+	}
+	return sent, adaptFloor
 }
 
 // fullRate is the most a data lane writes per second uncapped: a full sample
