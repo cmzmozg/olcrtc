@@ -69,6 +69,17 @@ const (
 	// acknowledged over the shortest round trip, which settles a round trip
 	// of queue and grows as the path frees up.
 	queueBudget = 250 * time.Millisecond
+	// ai-generated: queuePaceGain and its comment.
+	// A window bounds what KCP sends new, not what it sends again: with no
+	// congestion control (nc=1) every loss on a full uplink comes back as a
+	// resend at once, the resends overflow the buffer they were lost in, and
+	// a stream's next bytes wait at the peer behind the hole. While the path
+	// queues the lane therefore also writes no faster than queuePaceGain
+	// times the most delivered in a second of the last four: over what got
+	// through by enough to find more, never the whole overdrive. The best of
+	// four, not the last: a second that got nothing through would otherwise
+	// pace the lane down to nothing, and nothing would get through after it.
+	queuePaceGain = 1.25
 	// ai-generated: repeatMax, repeatAfter and their comment.
 	// A light sample that carries pushes, one with nothing queued behind it,
 	// is written again once repeatAfter has passed. Behind a lost packet with
@@ -119,10 +130,14 @@ type dataLane struct {
 	adapted   int
 	adaptedAt int64
 	// queuing holds from a round trip over queueBudget until the lane goes
-	// quiet, and acked is the conn's count at the last adapt. ai-generated:
-	// the queue check and the delivered rate.
-	queuing bool
-	acked   uint64
+	// quiet, acked is the conn's count at the last adapt, deliveries the
+	// rates delivered over the last four adapts and qpace the cap queuing
+	// puts on the lane. ai-generated: the queue check, the delivered rate
+	// and the queue pace.
+	queuing    bool
+	acked      uint64
+	deliveries [4]float64
+	qpace      pace
 	// name tells the lane apart in the log.
 	name string
 
@@ -259,6 +274,7 @@ func (l *dataLane) watch(p *streamTransport, now int64) bool {
 		}
 		l.seen, l.pushSince, l.darkSince, l.pace, l.frames = conn, 0, 0, pace{}, frameCap{}
 		l.minRTT, l.adapted, l.adaptedAt, l.acked, l.queuing = 0, 0, 0, 0, false
+		l.deliveries, l.qpace = [len(l.deliveries)]float64{}, pace{}
 	}
 	if conn == nil {
 		return false
@@ -338,12 +354,12 @@ func (l *dataLane) adapt(p *streamTransport, now int64) {
 	if l.srtt == nil || l.window == nil || l.seen == nil || now-l.adaptedAt < int64(adaptEvery) {
 		return
 	}
-	since := time.Duration(now - l.adaptedAt)
+	delivered := l.noteDelivered(time.Duration(now - l.adaptedAt))
 	l.adaptedAt = now
-	acked := l.seen.acked.Load()
-	delivered := float64((acked-l.acked)*kcpMTU) / since.Seconds()
-	l.acked = acked
 	rtt := l.srtt()
+	if sent := l.seen.sentRTT(); sent > 0 { // ai-generated: the queue pace.
+		rtt = sent
+	}
 	if rtt > 0 && (l.minRTT == 0 || rtt < l.minRTT) {
 		l.minRTT = rtt
 	}
@@ -351,12 +367,71 @@ func (l *dataLane) adapt(p *streamTransport, now int64) {
 		return
 	}
 	rate, floor := l.windowRate(l.pace.sentRate(now), delivered, rtt)
+	l.queuePace()
 	bdp := rate * float64(l.minRTT) / 1000
 	segments := min(max(int(2*bdp)/kcpMTU, floor), p.sendWindow)
 	if segments != l.adapted {
 		l.adapted = segments
 		l.window(segments)
 	}
+}
+
+// noteDelivered returns the rate the peer acknowledged since the last adapt,
+// since ago, and keeps it among the last four.
+//
+// ai-generated: the whole function (the delivered rate).
+func (l *dataLane) noteDelivered(since time.Duration) float64 {
+	acked := l.seen.acked.Load()
+	delivered := float64((acked-l.acked)*kcpMTU) / since.Seconds()
+	l.acked = acked
+	copy(l.deliveries[1:], l.deliveries[:len(l.deliveries)-1])
+	l.deliveries[0] = delivered
+	return delivered
+}
+
+// queuePace sets the queue cap for the lane's state: a pace of
+// queuePaceGain over the best second delivered while the path queues, none
+// otherwise.
+//
+// ai-generated: the whole function (the queue pace).
+func (l *dataLane) queuePace() {
+	if !l.queuing {
+		l.qpace.rate = 0
+		return
+	}
+	best := 0.0
+	for _, rate := range l.deliveries {
+		best = max(best, rate)
+	}
+	l.qpace.rate = max(queuePaceGain*best, minPaceRate)
+}
+
+// sampleLimit is how many packets the next sample may carry under the frame
+// cap and the lane's paces, false when the paces allow none now; the lane
+// then notes that it held data back.
+func (l *dataLane) sampleLimit(p *streamTransport, now int64) (int, bool) {
+	limit := cmp.Or(l.frames.limit, p.fullPackets())
+	allow := l.allow(now)
+	if allow < 0 {
+		return limit, true
+	}
+	if allow == 0 {
+		queued := l.pending != nil || len(l.out) > 0
+		l.heldBack = queued
+		l.pace.held = l.pace.held || (queued && l.pace.rate > 0)
+		return 0, false
+	}
+	return min(max(allow/kcpMTU, 1), limit), true
+}
+
+// allow is what the lane may write now under its caps, the dark spell's and
+// the queue's, or -1 under neither. ai-generated: the queue pace.
+func (l *dataLane) allow(now int64) int {
+	allow := l.pace.allow(now)
+	if q := l.qpace.allow(now); q >= 0 && (allow < 0 || q < allow) {
+		allow = q
+	}
+	return allow
 }
 
 // windowRate is the rate adapt sizes the window by and the floor under it:
@@ -401,14 +476,9 @@ func (p *streamTransport) fullPackets() int {
 // the transport batches and the cap allows, notes when it carried the first
 // unanswered push, and reports whether a sample went out.
 func (l *dataLane) send(p *streamTransport, now int64, write func([]byte) bool) bool {
-	limit := cmp.Or(l.frames.limit, p.fullPackets())
-	if allow := l.pace.allow(now); allow >= 0 {
-		if allow == 0 {
-			queued := l.pending != nil || len(l.out) > 0
-			l.pace.held, l.heldBack = l.pace.held || queued, queued
-			return false
-		}
-		limit = min(max(allow/kcpMTU, 1), limit)
+	limit, ok := l.sampleLimit(p, now)
+	if !ok {
+		return false
 	}
 	frame := l.takeFresh(now)
 	if frame == nil {
@@ -442,6 +512,7 @@ func (l *dataLane) send(p *streamTransport, now int64, write func([]byte) bool) 
 	}
 	l.heldBack = false
 	l.pace.wrote(now, len(sample))
+	l.qpace.wrote(now, len(sample))
 	l.pace.held = l.pace.held || (l.pace.rate > 0 && (l.pending != nil || len(l.out) > 0))
 	return true
 }
@@ -483,7 +554,8 @@ func (l *dataLane) sift() {
 func (l *dataLane) takeFresh(now int64) *packetBuffer {
 	for range cap(l.out) + 1 {
 		frame := l.take()
-		if frame == nil || (l.pace.rate == 0 && l.frames.limit == 0) || now-frame.queued <= 2*int64(capQueue) ||
+		if frame == nil || (l.pace.rate == 0 && l.qpace.rate == 0 && l.frames.limit == 0) ||
+			now-frame.queued <= 2*int64(capQueue) ||
 			(len(frame.data) > epochHdrLen && answers(frame.data[epochHdrLen:])) {
 			return frame
 		}

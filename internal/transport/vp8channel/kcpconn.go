@@ -734,6 +734,16 @@ func (c *kcpConn) noteAcks(body []byte) {
 	}
 }
 
+// sentRTT is pathRTT in milliseconds, zero before the first sample. Unlike
+// KCP's own round trip it starts when a push goes out in a sample, not when
+// KCP hands it to the queue, so a lane holding its queue back does not read
+// its own hold as a path that queues. ai-generated: the queue pace.
+func (c *kcpConn) sentRTT() int32 {
+	c.queuedMu.Lock()
+	defer c.queuedMu.Unlock()
+	return int32(c.pathRTT / int64(time.Millisecond)) //nolint:gosec // G115: a round trip in ms fits
+}
+
 // sampleRTT folds one round trip into pathRTT and pathVar the way KCP folds
 // its own. ai-generated: post-send resend veto.
 func (c *kcpConn) sampleRTT(rtt int64) {

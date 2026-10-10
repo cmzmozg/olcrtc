@@ -126,3 +126,30 @@ func TestAdaptFollowsWhatIsDeliveredWhileThePathQueues(t *testing.T) {
 		t.Fatalf("window=%d after the lane went quiet, want the floor %d back", *got, adaptFloor)
 	}
 }
+
+// ai-generated: the queue pace.
+func TestQueuePaceFollowsTheBestSecondDeliveredWhileThePathQueues(t *testing.T) {
+	l := &dataLane{deliveries: [4]float64{0, 300 << 10, 100 << 10, 0}}
+	l.queuePace()
+	if l.qpace.rate != 0 {
+		t.Fatalf("pace %.0f on a path that does not queue, want none", l.qpace.rate)
+	}
+	l.queuing = true
+	l.queuePace()
+	if want := queuePaceGain * float64(300<<10); l.qpace.rate != want {
+		t.Fatalf("pace %.0f while queuing, want %.0f over the best second, not the last", l.qpace.rate, want)
+	}
+	l.deliveries = [4]float64{}
+	l.queuePace()
+	if l.qpace.rate != minPaceRate {
+		t.Fatalf("pace %.0f after four empty seconds, want the floor %d", l.qpace.rate, minPaceRate)
+	}
+	p := &streamTransport{batchSize: 8}
+	now := monoNow()
+	l.qpace.credit, l.qpace.creditAt = 0, now
+	l.out = make(chan *packetBuffer, 1)
+	l.out <- &packetBuffer{}
+	if _, ok := l.sampleLimit(p, now); ok || !l.heldBack {
+		t.Fatalf("sampleLimit let a sample out with no pace credit left, held=%v", l.heldBack)
+	}
+}
