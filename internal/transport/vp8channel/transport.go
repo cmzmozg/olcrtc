@@ -313,6 +313,7 @@ func newStreamTransport(
 	tr.control = newKCPPlane(controlOutboundQueueSize, tr.deliverControlData)
 	// ai-generated: both planes run with this transport's window (olcrtc#26).
 	tr.data.sndWnd, tr.control.sndWnd = tr.sendWindow, tr.sendWindow
+	tr.data.mtu = tr.dataMTU()            // ai-generated: the packet frames.
 	tr.data.kick = make(chan struct{}, 1) // ai-generated: the idle kick.
 
 	tr.shaper = transport.NewShaper(cfg.Traffic, tr.Features())

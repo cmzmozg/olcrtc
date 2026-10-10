@@ -1,6 +1,7 @@
 package vp8channel
 
 import (
+	"cmp"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -138,7 +139,7 @@ type kcpRuntime struct {
 func startKCP(
 	out chan<- *packetBuffer, onData func([]byte), epochHdr [epochHdrLen]byte, sndWnd int,
 ) (*kcpRuntime, error) {
-	return startKCPAcks(out, nil, nil, onData, epochHdr, sndWnd)
+	return startKCPAcks(out, nil, nil, onData, epochHdr, sndWnd, 0)
 }
 
 // startKCPAcks is startKCP with the packets that only acknowledge the peer
@@ -148,7 +149,7 @@ func startKCP(
 // ai-generated: the acks queue (issue #12).
 func startKCPAcks(
 	out, acks chan<- *packetBuffer, kick chan struct{}, onData func([]byte), epochHdr [epochHdrLen]byte,
-	sndWnd int,
+	sndWnd, mtu int,
 ) (*kcpRuntime, error) {
 	c := newKCPConn(out, inboundQueueSizeFor(), epochHdr)
 	c.acks = acks
@@ -173,7 +174,7 @@ func startKCPAcks(
 		sndWnd = kcpSendWindow(false)
 	}
 	sess.SetWindowSize(sndWnd, kcpRcvWindow())
-	sess.SetMtu(kcpMTU)
+	sess.SetMtu(cmp.Or(mtu, kcpMTU)) // ai-generated: the mtu parameter (packet frames)
 	// Upstream marked SetStreamMode deprecated without providing a replacement;
 	// stream framing is still required for our wire format.
 	sess.SetStreamMode(true) //nolint:staticcheck // SA1019: no replacement upstream.
@@ -280,6 +281,9 @@ type kcpPlane struct {
 	// kick tells the writer that out went from empty to not, nil for none.
 	// ai-generated: the idle kick, see kcpConn.kick.
 	kick chan struct{}
+	// mtu is the KCP MTU of its sessions, 0 for kcpMTU. ai-generated: the
+	// packet frames, see packetFrameMTU.
+	mtu int
 
 	// lifecycleMu serializes start/restart/close. Without it two concurrent
 	// restarts - a provider reconnect and an upper-layer ResetPeer fire
@@ -340,7 +344,7 @@ func (p *kcpPlane) start(hdr [epochHdrLen]byte) (bool, error) {
 			return
 		}
 		var rt *kcpRuntime
-		rt, err = startKCPAcks(p.out, p.acks, p.kick, p.onData, hdr, p.sndWnd)
+		rt, err = startKCPAcks(p.out, p.acks, p.kick, p.onData, hdr, p.sndWnd, p.mtu)
 		if err != nil {
 			return
 		}
@@ -372,7 +376,7 @@ func (p *kcpPlane) restart(hdr [epochHdrLen]byte) {
 		old.close()
 	}
 
-	rt, err := startKCPAcks(p.out, p.acks, p.kick, p.onData, hdr, p.sndWnd)
+	rt, err := startKCPAcks(p.out, p.acks, p.kick, p.onData, hdr, p.sndWnd, p.mtu)
 	if err != nil {
 		return
 	}
