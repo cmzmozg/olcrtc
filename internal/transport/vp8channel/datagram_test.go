@@ -301,6 +301,21 @@ func TestWriterKeepsDifferentDatagramRoutesSeparate(t *testing.T) {
 	}
 }
 
+// ai-generated: the whole test (the reused buffer).
+func TestDatagramBatchReusesItsBuffer(t *testing.T) {
+	tr := newDatagramTestTransport(transport.Config{}, Options{BatchSize: 8})
+	first := mkDatagramFrame(tr.bindingToken, tr.localEpoch, 0x200, []byte("one"))
+	second := mkDatagramFrame(tr.bindingToken, tr.localEpoch, 0x200, []byte("two"))
+	w := newWriterState(tr)
+	allocs := testing.AllocsPerRun(100, func() {
+		tr.datagram <- second
+		_ = w.batchDatagramSampleFrom(tr.datagram, first)
+	})
+	if allocs > 0 {
+		t.Fatalf("a datagram batch allocated %.0f times, want its buffer reused", allocs)
+	}
+}
+
 func TestCloseDropsQueuedDatagrams(t *testing.T) {
 	tr := newDatagramTestTransport(transport.Config{}, Options{})
 	tr.datagram <- []byte("stale")

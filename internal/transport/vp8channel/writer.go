@@ -23,6 +23,10 @@ type writerState struct {
 	// pendingDatagram is a lossy sample that failed WriteSample, or the
 	// first datagram of the next route split off by batchDatagramSampleFrom.
 	pendingDatagram []byte
+	// datagramBuf is the storage batchDatagramSampleFrom builds in. A sample
+	// in it is written, or kept as pendingDatagram and written first, before
+	// the next one is built (ai-generated: the reused buffer).
+	datagramBuf []byte
 }
 
 // newWriterState is writerLoop's bookkeeping for p.
@@ -173,7 +177,10 @@ func (w *writerState) batchDatagramSampleFrom(src <-chan []byte, first []byte) [
 	if len(first) <= epochHdrLen || w.p.batchSize <= 1 {
 		return first
 	}
-	sample := make([]byte, 0, defaultMaxPayloadSize)
+	if cap(w.datagramBuf) < defaultMaxPayloadSize {
+		w.datagramBuf = make([]byte, 0, defaultMaxPayloadSize)
+	}
+	sample := w.datagramBuf[:0]
 	sample = append(sample, first[:epochHdrLen]...)
 	sample = append(sample, datagramBatchMagic[:]...)
 	sample = appendBatchPacket(sample, first[epochHdrLen:])
