@@ -83,7 +83,10 @@ type kcpConn struct {
 	// WriteTo then drops the pushes KCP resends but one per holdEvery, the
 	// next due at probeAt, and lets through whatever answers the peer.
 	// ai-generated: issue #12.
-	lastAck   atomic.Int64
+	lastAck atomic.Int64
+	// traffic counts the packets that pass either way, for the client's
+	// pick between its lanes. ai-generated (second lane).
+	traffic   trafficMeter
 	holdEvery atomic.Int64
 	probeAt   atomic.Int64
 	// acked counts the pushes answered for the first time, the delivery
@@ -254,6 +257,7 @@ func (c *kcpConn) deliver(payload []byte) {
 		c.corrupt.Add(1)
 		return
 	}
+	c.traffic.add()
 	if answers(body) { // ai-generated: issue #12
 		c.lastAck.Store(monoNow())
 	}
@@ -393,6 +397,7 @@ func (c *kcpConn) probe() {
 
 func (c *kcpConn) WriteTo(p []byte, _ net.Addr) (int, error) {
 	size := len(p)
+	c.traffic.add()
 	// ai-generated: the split answers. kcp-go writes its acknowledgements
 	// ahead of the pushes in one packet, and a packet with a push waits on
 	// out behind everything queued: while this side sends bulk, the peer's
@@ -634,6 +639,14 @@ func (c *kcpConn) resendState(sn uint32, now int64) int {
 	return resendEarly
 }
 
+// inFlight is how many pushes went out unanswered, as far as sentAt keeps
+// them. ai-generated: the second lane's load.
+func (c *kcpConn) inFlight() int {
+	c.queuedMu.Lock()
+	defer c.queuedMu.Unlock()
+	return len(c.sentAt)
+}
+
 // sentWait is how long a sent push waits for its acknowledgement before a
 // resend may follow it: at least two round trips, since the spread alone
 // read 9 ms on a VK path whose late acknowledgements still came after
@@ -812,3 +825,44 @@ func (TimeoutError) Timeout() bool { return true }
 
 // Temporary reports that this error is temporary.
 func (TimeoutError) Temporary() bool { return true }
+
+// trafficBucket is the span of one bucket of a trafficMeter.
+const trafficBucket = int64(500 * time.Millisecond)
+
+// trafficMeter counts packets over the bucket filling now and the one before
+// it: about the last second of a lane's traffic, both ways.
+//
+// ai-generated: the whole type (second lane).
+type trafficMeter struct {
+	mu        sync.Mutex
+	at        int64 // bucket of cur
+	cur, prev int
+}
+
+func (m *trafficMeter) roll(now int64) {
+	switch b := now / trafficBucket; b {
+	case m.at:
+		return
+	case m.at + 1:
+		m.prev, m.cur = m.cur, 0
+	default:
+		m.prev, m.cur = 0, 0
+	}
+	m.at = now / trafficBucket
+}
+
+func (m *trafficMeter) add() {
+	now := monoNow()
+	m.mu.Lock()
+	m.roll(now)
+	m.cur++
+	m.mu.Unlock()
+}
+
+func (m *trafficMeter) recent() int {
+	now := monoNow()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.roll(now)
+	return m.prev + m.cur
+}

@@ -62,7 +62,8 @@ type peerSession struct {
 
 	controlMu sync.Mutex
 	control   *kcpRuntime
-	closed    bool // ai-generated: guarded by controlMu; fences late control creation.
+	lane      *kcpRuntime // ai-generated: the second lane, guarded by controlMu.
+	closed    bool        // ai-generated: guarded by controlMu; fences late control creation.
 
 	// lastSeen is a UnixNano timestamp refreshed by every inbound frame.
 	lastSeen int64
@@ -115,6 +116,9 @@ func (s *peerSession) readdress(token, local uint32) {
 	if s.control != nil {
 		s.control.setHeader(buildEpochHeaderTo(token, local|controlEpochFlag, s.epoch|controlEpochFlag))
 	}
+	if s.lane != nil { // ai-generated: second lane
+		s.lane.setHeader(buildEpochHeaderTo(token, local, s.epoch))
+	}
 }
 
 // close releases both KCP sessions and stops the writer pump. Safe to call
@@ -124,13 +128,16 @@ func (s *peerSession) close() {
 	s.closeOnce.Do(func() {
 		s.controlMu.Lock()
 		s.closed = true
-		control := s.control
-		s.control = nil
+		control, lane := s.control, s.lane
+		s.control, s.lane = nil, nil
 		s.controlMu.Unlock()
 
 		s.data.abortPeer()
 		if control != nil {
 			control.abortPeer()
+		}
+		if lane != nil {
+			lane.abortPeer()
 		}
 
 		close(s.done)
@@ -374,7 +381,7 @@ func (p *streamTransport) peerSessionFor(epoch uint32) *peerSession {
 		if p.onPeerData != nil {
 			p.onPeerData(peerID, payload)
 		}
-	}, hdr, p.sendWindow)
+	}, hdr, p.sendWindow, kcpConvID)
 	if err != nil {
 		logger.Warnf("vp8channel: startKCP for peer 0x%08x failed: %v", epoch, err)
 

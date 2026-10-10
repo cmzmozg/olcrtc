@@ -80,7 +80,7 @@ func (p *streamTransport) handleSinglePeerData(src uint32, kcpPayload []byte) {
 	if len(kcpPayload) == 0 {
 		return
 	}
-	deliverKCPPayload(p.data.get(), kcpPayload)
+	deliverLanes(p.data.get(), p.laneRuntime, kcpPayload) // ai-generated: the second lane.
 }
 
 // maybePeerRestart reads a frame from a non-latched epoch as a possible server
@@ -117,5 +117,5 @@ func (p *streamTransport) handlePeerFrame(peerEpoch uint32, kcpPayload []byte) {
 		return
 	}
 
-	deliverKCPPayload(sess.data, kcpPayload)
+	deliverLanes(sess.data, func() *kcpRuntime { return p.laneOf(sess) }, kcpPayload) // ai-generated: the second lane.
 }

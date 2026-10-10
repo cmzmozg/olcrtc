@@ -159,6 +159,13 @@ type streamTransport struct {
 	// Both are plain KCP planes with independent epochs and queues.
 	data    *kcpPlane
 	control *kcpPlane
+	// lane is the client's second data lane, laneOnData and laneOnPeerData
+	// the callbacks its frames go to on either side. ai-generated: the
+	// second lane.
+	lane           *kcpPlane
+	laneOnData     atomic.Pointer[func([]byte)]
+	laneOnPeerData atomic.Pointer[func(peerID string, data []byte)]
+	laneOnce       sync.Once
 	// datagram is the lossy lane: whole frames the writer sends as they are,
 	// bypassing KCP, after control and before bulk data (see datagram.go).
 	datagram chan []byte
@@ -314,6 +321,7 @@ func newStreamTransport(
 	// ai-generated: both planes run with this transport's window (olcrtc#26).
 	tr.data.sndWnd, tr.control.sndWnd = tr.sendWindow, tr.sendWindow
 	tr.data.kick = make(chan struct{}, 1) // ai-generated: the idle kick.
+	tr.lane = newLanePlane(tr)            // ai-generated: the second lane.
 
 	tr.shaper = transport.NewShaper(cfg.Traffic, tr.Features())
 
@@ -346,6 +354,7 @@ func (p *streamTransport) Connect(ctx context.Context) error {
 	case started:
 		logger.Infof("vp8channel: control KCP started epoch=0x%08x", p.controlEpochValue())
 	}
+	p.startLane() // ai-generated: the second lane.
 
 	p.writerOnce.Do(func() {
 		p.writerUp.Store(true)
@@ -435,6 +444,9 @@ func (p *streamTransport) ConfirmPeer(peerID string) error {
 	if rt := p.data.get(); rt != nil {
 		rt.setHeader(buildEpochHeaderTo(p.bindingToken, p.localEpochValue(), epoch))
 	}
+	if rt := p.laneRuntime(); rt != nil { // ai-generated: second lane
+		rt.setHeader(buildEpochHeaderTo(p.bindingToken, p.localEpochValue(), epoch))
+	}
 	p.peerEpoch.Store(epoch)
 	p.lastPeerFrameNano.Store(time.Now().UnixNano())
 	p.peerRestarting.Store(false)
@@ -449,6 +461,9 @@ func (p *streamTransport) Close() error {
 		close(p.closeCh)
 
 		p.data.close()
+		if p.lane != nil { // ai-generated: the second lane.
+			p.lane.close()
+		}
 		p.control.close()
 		p.peers.closeAll()
 		p.drainDatagramQueue()
@@ -484,6 +499,9 @@ func (p *streamTransport) restartPlanes() {
 	p.peerSeen.Store(false)
 	p.peerEpoch.Store(0)
 	p.data.restart(p.rotateEpochHeader())
+	if p.lane != nil { // ai-generated: the second lane.
+		p.lane.restart(p.epochHeader())
+	}
 	p.control.restart(p.controlEpochHeader())
 	p.readdressPeers()
 }

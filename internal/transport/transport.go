@@ -131,6 +131,40 @@ type PeerControlPlane interface {
 	ControlPeerCanSend(peerID string) bool
 }
 
+// LanePlane is implemented by transports with a second data lane: a reliable
+// session of its own beside the data plane, so a stream on it neither queues
+// behind the data plane's bulk nor waits at the peer for the data plane's
+// losses. The client opens a new stream on whichever lane holds less.
+//
+// ai-generated: the whole interface (second lane).
+type LanePlane interface {
+	// LaneSend sends a raw encrypted frame on the second lane.
+	LaneSend(data []byte) error
+	// SetLaneOnData registers the callback for every frame the second lane
+	// receives.
+	SetLaneOnData(cb func([]byte))
+	// LaneCanSend reports whether the second lane is ready to send.
+	LaneCanSend() bool
+	// LaneLoads reports how loaded the data plane and the second lane are,
+	// in packets queued, in flight and carried lately, for the client to
+	// pick the lighter one.
+	LaneLoads() (data, lane int)
+}
+
+// PeerLanePlane is LanePlane per peer, for the server: a peer's second lane
+// comes up with the first frame the peer sends on it.
+//
+// ai-generated: the whole interface (second lane).
+type PeerLanePlane interface {
+	// LaneSendTo sends a frame on a peer's second lane.
+	LaneSendTo(peerID string, data []byte) error
+	// SetLaneOnPeerData registers the callback for every frame any peer's
+	// second lane receives.
+	SetLaneOnPeerData(cb func(peerID string, data []byte))
+	// LanePeerCanSend reports whether a peer's second lane is ready to send.
+	LanePeerCanSend(peerID string) bool
+}
+
 // PeerReadyTransport is implemented by transports whose provider can signal
 // when a remote peer has appeared. WaitForPeer blocks until the remote side
 // is confirmed ready (first epoch frame received), or ctx is cancelled.
