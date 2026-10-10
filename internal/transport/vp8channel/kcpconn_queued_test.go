@@ -194,3 +194,14 @@ func TestEnqueueKicksOnlyWhenTheQueueWasEmpty(t *testing.T) {
 	default:
 	}
 }
+
+// ai-generated: the deferred kick.
+func TestKickInsideTheGapWaitsOutTheGapNotATick(t *testing.T) {
+	if d := kickDelay(time.Time{}); d != kickCoalesce {
+		t.Fatalf("kickDelay after a long pause = %s, want %s", d, kickCoalesce)
+	}
+	d := kickDelay(time.Now())
+	if d <= kickCoalesce || d > kickGap {
+		t.Fatalf("kickDelay right after a flush = %s, want the rest of the %s gap", d, kickGap)
+	}
+}

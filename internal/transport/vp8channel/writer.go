@@ -278,8 +278,8 @@ func (p *streamTransport) writerLoop() {
 			// ai-generated: the idle kick. What a pause ends with goes out a
 			// moment later, once the burst KCP writes in one flush is queued,
 			// instead of at the next tick; bulk keeps out busy and the ticks.
-			if kicked == nil && time.Since(lastFlush) >= kickGap {
-				kicked = time.After(kickCoalesce)
+			if kicked == nil {
+				kicked = time.After(kickDelay(lastFlush))
 			}
 		case <-kicked:
 			kicked, lastFlush = nil, time.Now()
@@ -339,8 +339,8 @@ func (p *streamTransport) peerWriterPump(lane dataLane, done <-chan struct{}) {
 		case <-done:
 			return
 		case <-lane.kick:
-			if kicked == nil && time.Since(lastFlush) >= kickGap { // ai-generated: the idle kick.
-				kicked = time.After(kickCoalesce)
+			if kicked == nil { // ai-generated: the idle kick.
+				kicked = time.After(kickDelay(lastFlush))
 			}
 		case <-kicked:
 			kicked, lastFlush = nil, time.Now()
@@ -355,6 +355,18 @@ func (p *streamTransport) peerWriterPump(lane dataLane, done <-chan struct{}) {
 			lane.flush(p, p.writeSampleLocked)
 		}
 	}
+}
+
+// kickDelay is how long a kick waits for its flush: kickCoalesce, or what
+// is left of kickGap since the last kicked flush. A kick inside the gap used
+// to wait for the next tick, a whole frame at 30 fps, and a new connection
+// writes in pairs a few ms apart: the CONNECT and the first bytes behind it,
+// a TLS finished and the request, the ack and the answer. On a phone that
+// cost a new connection about 50 ms a round trip.
+//
+// ai-generated: the whole function.
+func kickDelay(lastFlush time.Time) time.Duration {
+	return max(kickCoalesce, kickGap-time.Since(lastFlush))
 }
 
 func (p *streamTransport) canBatch(frame []byte) bool {

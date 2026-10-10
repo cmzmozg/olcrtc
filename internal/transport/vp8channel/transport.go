@@ -95,7 +95,8 @@ const (
 	// out and stops forwarding the track.
 	forceKeepalivePeriod = 2 * time.Second
 	// kickGap is the least time between two kicked flushes, so a burst of
-	// small writes does not turn into a frame each. ai-generated.
+	// small writes does not turn into a frame each; a kick inside it waits
+	// for the rest of the gap (kickDelay). ai-generated.
 	kickGap = 5 * time.Millisecond
 	// kickCoalesce is how long a kicked flush waits for the rest of the
 	// burst that kicked it. ai-generated.
