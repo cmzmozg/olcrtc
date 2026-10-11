@@ -29,13 +29,12 @@ func (b *syncBuffer) String() string {
 	return b.buf.String()
 }
 
-// TestStreamsOpenedUnderBulkTakeTheSecondLane runs a bulk echo over a
-// vp8channel tunnel and opens short connections beside it: they must work,
-// and the client must have put them on the second lane, which the server
-// builds on that lane's first frame.
+// TestStreamsRideTheOLTDataPlane runs a bulk echo over a vp8channel tunnel and
+// opens short connections beside it: they must work, and they must ride the
+// olt data plane, which the server builds on the client's first olt packet.
 //
-// ai-generated: the whole test (second lane).
-func TestStreamsOpenedUnderBulkTakeTheSecondLane(t *testing.T) {
+// ai-generated: the whole test (olt data plane; was the second lane's).
+func TestStreamsRideTheOLTDataPlane(t *testing.T) {
 	logs := &syncBuffer{}
 	log.SetOutput(io.MultiWriter(os.Stderr, logs))
 	t.Cleanup(func() { log.SetOutput(os.Stderr) })
@@ -43,8 +42,8 @@ func TestStreamsOpenedUnderBulkTakeTheSecondLane(t *testing.T) {
 	echoAddr := startEchoServer(t)
 	rt := startMemoryTunnel(t, transportVP8, true)
 	defer rt.stop(t)
-	if !strings.Contains(logs.String(), "second lane open") {
-		t.Fatal("client did not open the second lane after the welcome")
+	if !strings.Contains(logs.String(), "olt data plane open") {
+		t.Fatal("client did not open the olt data plane after the welcome")
 	}
 
 	bulk := connectViaSOCKS(t, rt.socksAddr, echoAddr)
@@ -69,7 +68,7 @@ func TestStreamsOpenedUnderBulkTakeTheSecondLane(t *testing.T) {
 	if err := <-bulkErr; err != nil {
 		t.Fatalf("bulk echo: %v", err)
 	}
-	if !strings.Contains(logs.String(), "second lane session created") {
-		t.Fatal("no stream reached the server on the second lane")
+	if !strings.Contains(logs.String(), "server: olt data plane created") {
+		t.Fatal("no stream reached the server on the olt data plane")
 	}
 }

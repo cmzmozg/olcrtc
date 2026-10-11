@@ -162,6 +162,15 @@ func (r *memRoom) clients() []*memMember {
 // session-close callbacks land on.
 func startRoomServer(ctx context.Context, t *testing.T, name string, room *memRoom, liveness control.Config) <-chan string {
 	t.Helper()
+	return startRoomServerWith(ctx, t, name, room, liveness, false)
+}
+
+// startRoomServerWith is startRoomServer, without the olt data plane when
+// noOLT is set. ai-generated (olt data plane).
+func startRoomServerWith(
+	ctx context.Context, t *testing.T, name string, room *memRoom, liveness control.Config, noOLT bool,
+) <-chan string {
+	t.Helper()
 	closed := make(chan string, 64)
 	done := make(chan struct{})
 	go func() {
@@ -171,6 +180,7 @@ func startRoomServer(ctx context.Context, t *testing.T, name string, room *memRo
 			// ai-generated: the policy lift, the echo target is on loopback (egress hardening).
 			DNSServer: "127.0.0.1:53", Liveness: liveness, UnsafeAllowPrivateTargets: true,
 			OnSessionClose: func(id, reason string) { closed <- id + " " + reason },
+			OLTDisabled:    noOLT,
 		})
 		if err != nil && ctx.Err() == nil {
 			t.Errorf("server.Run: %v", err)

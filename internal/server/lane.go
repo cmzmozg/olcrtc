@@ -21,10 +21,18 @@ import (
 
 // peerFeatures is what the welcome of a peer session announces.
 func (s *Server) peerFeatures() []string {
-	if _, ok := s.ln.(transport.PeerLanePlane); ok {
-		return []string{handshake.FeatureEarlyData, handshake.FeatureLanes}
+	features := []string{handshake.FeatureEarlyData}
+	if _, ok := s.ln.(transport.PeerLanePlane); !ok {
+		return features
 	}
-	return []string{handshake.FeatureEarlyData}
+	features = append(features, handshake.FeatureLanes)
+	// ai-generated: the olt data plane, on the transport that keeps a
+	// datagram inside one RTP packet and repairs it (vp8channel, the one
+	// with lanes too).
+	if _, ok := s.ln.(transport.PeerDatagramTransport); ok && !s.oltDisabled {
+		features = append(features, handshake.FeatureOLT)
+	}
+	return features
 }
 
 func (s *Server) installPeerLanePlane() {

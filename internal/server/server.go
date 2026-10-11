@@ -108,6 +108,7 @@ type Server struct {
 	// UDP relay state (see udp.go). udpPendingFlows counts flows being
 	// dialled so the cap holds while a dial is in flight.
 	udpDisabled     bool
+	oltDisabled     bool
 	maxUDPFlows     int
 	udpMu           sync.Mutex
 	udpFlows        map[serverUDPKey]*serverUDPFlow
@@ -148,25 +149,28 @@ type Config struct {
 	UDPDisabled               bool
 	UDPMaxFlows               int
 	UnsafeAllowPrivateTargets bool
-	DNSServer                 string
-	DTLSProfile               engine.DTLSProfile
-	Resolver                  protect.Lookup
-	SOCKSProxyAddr            string
-	SOCKSProxyPort            int
-	SOCKSProxyUser            string
-	SOCKSProxyPass            string
-	TransportOptions          transport.Options
-	Engine                    string
-	URL                       string
-	Token                     string
-	ProviderToken             string
-	Liveness                  control.Config
-	Traffic                   transport.TrafficConfig
-	AuthHook                  handshake.AuthFunc
-	OnSessionOpen             SessionOpenFunc
-	OnSessionClose            SessionCloseFunc
-	OnTraffic                 TrafficFunc
-	OnHealth                  HealthFunc
+	// OLTDisabled keeps the server from offering the olt data plane, so its
+	// clients stay on smux over KCP. ai-generated (olt data plane).
+	OLTDisabled      bool
+	DNSServer        string
+	DTLSProfile      engine.DTLSProfile
+	Resolver         protect.Lookup
+	SOCKSProxyAddr   string
+	SOCKSProxyPort   int
+	SOCKSProxyUser   string
+	SOCKSProxyPass   string
+	TransportOptions transport.Options
+	Engine           string
+	URL              string
+	Token            string
+	ProviderToken    string
+	Liveness         control.Config
+	Traffic          transport.TrafficConfig
+	AuthHook         handshake.AuthFunc
+	OnSessionOpen    SessionOpenFunc
+	OnSessionClose   SessionCloseFunc
+	OnTraffic        TrafficFunc
+	OnHealth         HealthFunc
 }
 
 // Run starts the server with the given configuration.
@@ -202,6 +206,7 @@ func Run(ctx context.Context, cfg Config) error {
 		peerSessions: make(map[string]*peerSession), peerStats: make(map[string]peerStat),
 		done: make(chan struct{}), meter: newMeter(),
 		udpDisabled: cfg.UDPDisabled, maxUDPFlows: normalizeMaxUDPFlows(cfg.UDPMaxFlows),
+		oltDisabled: cfg.OLTDisabled,
 		// ai-generated: the test hook (egress hardening); a release build
 		// has no hook and always keeps the policy.
 		unsafeAllowPrivateTargets: cfg.UnsafeAllowPrivateTargets || testhooks.AllowPrivateTargets(),

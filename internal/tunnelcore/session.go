@@ -9,6 +9,7 @@ import (
 
 	"github.com/openlibrecommunity/olcrtc/internal/crypto"
 	"github.com/openlibrecommunity/olcrtc/internal/muxconn"
+	"github.com/openlibrecommunity/olcrtc/internal/olt"
 	"github.com/openlibrecommunity/olcrtc/internal/runtime"
 	"github.com/openlibrecommunity/olcrtc/internal/transport"
 )
@@ -35,6 +36,18 @@ type SessionPair struct {
 	ControlSession *smux.Session
 	LaneConn       *muxconn.Conn
 	LaneSession    *smux.Session
+	// OLT is the session's olt data plane, when the peer runs one; new
+	// streams prefer it. ai-generated (olt data plane).
+	OLT *olt.Conn
+}
+
+// StreamSession is where the session's new streams go: the olt data plane
+// while it is up, else the smux data session. ai-generated (olt data plane).
+func (p *SessionPair) StreamSession() StreamSession {
+	if p.OLT != nil && !p.OLT.IsClosed() {
+		return OLTSession{p.OLT}
+	}
+	return WrapSmux(p.DataSession)
 }
 
 // AttachLane builds a data session over the transport's second lane, under
@@ -188,6 +201,9 @@ func (p *SessionPair) Close() error {
 	}
 	if p.LaneSession != nil {
 		errs = append(errs, p.LaneSession.Close())
+	}
+	if p.OLT != nil {
+		errs = append(errs, p.OLT.Close())
 	}
 	if err := p.CloseConns(); err != nil {
 		errs = append(errs, err)

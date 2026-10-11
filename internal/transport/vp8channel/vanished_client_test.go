@@ -49,8 +49,10 @@ func measureAfterAClientVanishes(t *testing.T, blackout time.Duration) int64 {
 	name, room := newMemRoom(t)
 	// Liveness must not end the session inside the window: this is about the
 	// time before that, which is what #24 is about.
-	startRoomServer(t.Context(), t, name, room,
-		control.Config{Interval: time.Second, Timeout: 30 * time.Second, Failures: 8})
+	// ai-generated: the KCP data lane is what this measures, so the server
+	// offers no olt data plane (olt backs off a silent peer by itself).
+	startRoomServerWith(t.Context(), t, name, room,
+		control.Config{Interval: time.Second, Timeout: 30 * time.Second, Failures: 8}, true)
 	echo := startEcho(t)
 
 	srv := waitForServer(t, room)

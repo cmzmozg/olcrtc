@@ -174,6 +174,9 @@ type Video struct {
 type VP8 struct {
 	FPS       int `yaml:"fps"`
 	BatchSize int `yaml:"batch_size"`
+	// OLTDisabled keeps a server from offering the olt data plane, so every
+	// client stays on smux over KCP. ai-generated (olt data plane).
+	OLTDisabled bool `yaml:"olt_disabled"`
 }
 
 // SEI tunes the seichannel transport.
@@ -470,6 +473,7 @@ func ApplySettings(dst session.Config, s Settings) session.Config {
 
 	dst.VP8.FPS = overlay(dst.VP8.FPS, s.VP8.FPS)
 	dst.VP8.BatchSize = overlay(dst.VP8.BatchSize, s.VP8.BatchSize)
+	dst.OLTDisabled = dst.OLTDisabled || s.VP8.OLTDisabled
 
 	dst.SEI.FPS = overlay(dst.SEI.FPS, s.SEI.FPS)
 	dst.SEI.BatchSize = overlay(dst.SEI.BatchSize, s.SEI.BatchSize)

@@ -17,6 +17,7 @@ import (
 	"github.com/openlibrecommunity/olcrtc/internal/handshake"
 	"github.com/openlibrecommunity/olcrtc/internal/logger"
 	"github.com/openlibrecommunity/olcrtc/internal/muxconn"
+	"github.com/openlibrecommunity/olcrtc/internal/olt"
 	"github.com/openlibrecommunity/olcrtc/internal/runtime"
 	"github.com/openlibrecommunity/olcrtc/internal/transport"
 	"github.com/openlibrecommunity/olcrtc/internal/tunnelcore"
@@ -64,8 +65,11 @@ type peerSession struct {
 	controlStop   context.CancelFunc
 	// laneConn and laneSess are the peer's second data lane, built on its
 	// first frame (peerLane). ai-generated (second lane).
-	laneConn  *muxconn.Conn
-	laneSess  *smux.Session
+	laneConn *muxconn.Conn
+	laneSess *smux.Session
+	// oltConn is the peer's olt data plane, built on its first packet
+	// (peerOLT). ai-generated (olt data plane).
+	oltConn   *olt.Conn
 	sessionID string
 	deviceID  string
 	closed    bool
@@ -166,6 +170,7 @@ type teardown struct {
 	controlStop context.CancelFunc
 	laneConn    *muxconn.Conn
 	laneSess    *smux.Session
+	oltConn     *olt.Conn
 	sessionID   string
 }
 
@@ -176,7 +181,7 @@ func (ps *peerSession) closeSnapshot() teardown {
 	return teardown{
 		conn: ps.conn, session: ps.session, controlConn: ps.controlConn,
 		controlSess: ps.controlSess, controlStrm: ps.controlStrm,
-		controlStop: ps.controlStop, laneConn: ps.laneConn, laneSess: ps.laneSess,
+		controlStop: ps.controlStop, laneConn: ps.laneConn, laneSess: ps.laneSess, oltConn: ps.oltConn,
 		sessionID: ps.sessionID,
 	}
 }
@@ -729,6 +734,9 @@ func (s *Server) endPeerSession(peer *peerSession, reason string, notify bool) {
 		}
 		if teardown.laneSess != nil {
 			_ = teardown.laneSess.Close()
+		}
+		if teardown.oltConn != nil {
+			_ = teardown.oltConn.Close()
 		}
 		if teardown.controlStrm != nil {
 			_ = teardown.controlStrm.Close()

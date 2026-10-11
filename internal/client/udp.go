@@ -336,6 +336,9 @@ func (c *Client) forwardLocalUDP(
 }
 
 func (c *Client) onDatagram(ciphertext []byte) {
+	if c.inputOLT(ciphertext) { // ai-generated: the olt data plane
+		return
+	}
 	if c.udpDisabled {
 		return
 	}

@@ -52,6 +52,12 @@ const FeatureEarlyData = "early-data"
 // ai-generated: the feature flag (second lane).
 const FeatureLanes = "lanes"
 
+// FeatureOLT in a welcome says the server takes streams over the olt data
+// plane on the transport's datagram lane.
+//
+// ai-generated: the feature flag (olt data plane).
+const FeatureOLT = "olt"
+
 // MaxMessageSize caps a single handshake frame. 64 KiB is comfortably larger
 // than any legitimate HELLO/WELCOME payload and prevents memory blowups from
 // malicious peers.

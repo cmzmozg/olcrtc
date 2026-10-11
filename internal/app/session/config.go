@@ -166,6 +166,9 @@ type Config struct {
 	// (0 means the default).
 	UDPDisabled bool
 	UDPMaxFlows int
+	// OLTDisabled keeps a server from offering the olt data plane.
+	// ai-generated (olt data plane).
+	OLTDisabled bool
 	// EndOnEmptyRoom ends a client run when a reconnect handshake finds the
 	// room empty, so a supervisor walking a room list moves on instead of
 	// waiting in a room whose server has gone. Not read from YAML: whoever

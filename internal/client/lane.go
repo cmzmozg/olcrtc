@@ -35,8 +35,13 @@ func (c *Client) streamSession(session tunnelcore.StreamSession) tunnelcore.Stre
 	c.sessMu.RLock()
 	pair := c.pair
 	c.sessMu.RUnlock()
-	if pair == nil || tunnelcore.WrapSmux(pair.DataSession) != session ||
-		pair.LaneSession == nil || pair.LaneSession.IsClosed() {
+	if pair == nil || tunnelcore.WrapSmux(pair.DataSession) != session {
+		return session
+	}
+	if pair.OLT != nil && !pair.OLT.IsClosed() { // ai-generated: the olt data plane
+		return tunnelcore.OLTSession{Conn: pair.OLT}
+	}
+	if pair.LaneSession == nil || pair.LaneSession.IsClosed() {
 		return session
 	}
 	lanes, ok := c.ln.(transport.LanePlane)

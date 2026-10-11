@@ -81,6 +81,9 @@ func (s *Server) onPeerDatagram(peerID string, ciphertext []byte) {
 }
 
 func (s *Server) handleDatagram(peerID string, ciphertext []byte) {
+	if s.handleOLT(peerID, ciphertext) { // ai-generated: the olt data plane
+		return
+	}
 	if s.udpDisabled {
 		return
 	}
