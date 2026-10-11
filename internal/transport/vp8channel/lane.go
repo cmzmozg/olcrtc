@@ -8,6 +8,7 @@ import (
 	"cmp"
 	"encoding/binary"
 	"fmt"
+	"sync"
 	"time"
 
 	kcp "github.com/xtaci/kcp-go/v5"
@@ -123,6 +124,10 @@ type dataLane struct {
 	// kick says out went from empty to not; the writer then flushes at once
 	// rather than at its next tick. ai-generated: the idle kick.
 	kick <-chan struct{}
+	// path is what the peer's two lanes know of their one path, side this
+	// lane's place in it; nil for a lane alone. ai-generated (second lane).
+	path *pathShare
+	side int
 	// srtt reads the session's smoothed round trip in milliseconds; nil
 	// leaves the window to the caps. ai-generated: srtt and the adapt state.
 	srtt      func() int32
@@ -366,7 +371,9 @@ func (l *dataLane) adapt(p *streamTransport, now int64) {
 	if l.minRTT == 0 || l.darkSince != 0 || l.pace.rate > 0 || l.frames.limit > 0 {
 		return
 	}
-	rate, floor := l.windowRate(l.pace.sentRate(now), delivered, rtt)
+	sent, queuing := l.pace.sentRate(now), l.queuing
+	rate, floor := l.windowRate(sent, delivered, rtt)
+	rate = l.share(rate, sent, queuing, now)
 	l.queuePace()
 	bdp := rate * float64(l.minRTT) / 1000
 	segments := min(max(int(2*bdp)/kcpMTU, floor), p.sendWindow)
@@ -399,11 +406,7 @@ func (l *dataLane) queuePace() {
 		l.qpace.rate = 0
 		return
 	}
-	best := 0.0
-	for _, rate := range l.deliveries {
-		best = max(best, rate)
-	}
-	l.qpace.rate = max(queuePaceGain*best, minPaceRate)
+	l.qpace.rate = max(queuePaceGain*l.bestDelivered(), minPaceRate)
 }
 
 // sampleLimit is how many packets the next sample may carry under the frame
@@ -448,9 +451,88 @@ func (l *dataLane) windowRate(sent, delivered float64, rtt int32) (float64, int)
 		l.queuing = false
 	}
 	if l.queuing {
-		return min(sent, delivered), minCapWindow
+		// ai-generated: the best of the last four seconds, as the queue pace
+		// takes, not the last one alone: on a phone's path one second's
+		// acknowledgements come in bunches, a light second shrank the window
+		// below the pipe, and the next second carried less for it.
+		return min(sent, max(delivered, l.bestDelivered())), minCapWindow
 	}
 	return sent, adaptFloor
+}
+
+// share notes the lane's state on the peer's path and, for a lane that has
+// just found the path queuing, starts its rate at what the other lane got
+// through (seed). ai-generated.
+func (l *dataLane) share(rate, sent float64, queuing bool, now int64) float64 {
+	if l.queuing && !queuing {
+		rate = max(rate, l.seed(now))
+	}
+	l.path.note(l.side, sent >= quietRate, l.bestDelivered(), now)
+	return rate
+}
+
+// seed starts a lane that has just found the path queuing at what the other
+// lane of the peer last got through, when that one has gone quiet: the next
+// connection of a download that hops between lanes took a whole climb from
+// the rate of its first second, and every new connection a speed test opens
+// does. ai-generated.
+func (l *dataLane) seed(now int64) float64 {
+	best := l.path.recent(l.side, now)
+	if best > l.bestDelivered() {
+		l.deliveries[0] = best
+	}
+	return best
+}
+
+// pathShareFor is how long what a lane got through stays a fair start for
+// the other lane of its peer. ai-generated.
+const pathShareFor = 4 * time.Second
+
+// pathShare is what the two lanes of a peer know of the path they share: the
+// best second the last busy one got through, and which one is busy now.
+// ai-generated (second lane).
+type pathShare struct {
+	mu   sync.Mutex
+	best float64
+	at   int64
+	busy [2]bool
+}
+
+// note records side's state at one of its adapts.
+func (s *pathShare) note(side int, busy bool, best float64, now int64) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.busy[side] = busy
+	if busy && best > 0 {
+		s.best, s.at = best, now
+	}
+}
+
+// recent is what the other side got through lately, when it is quiet now;
+// zero otherwise, so two busy lanes never start on one path's whole rate.
+func (s *pathShare) recent(side int, now int64) float64 {
+	if s == nil {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.busy[1-side] || now-s.at > int64(pathShareFor) {
+		return 0
+	}
+	return s.best
+}
+
+// bestDelivered is the most the peer acknowledged in a second of the last
+// four. ai-generated.
+func (l *dataLane) bestDelivered() float64 {
+	best := 0.0
+	for _, rate := range l.deliveries {
+		best = max(best, rate)
+	}
+	return best
 }
 
 // fullRate is the most a data lane writes per second uncapped: a full sample

@@ -153,3 +153,41 @@ func TestQueuePaceFollowsTheBestSecondDeliveredWhileThePathQueues(t *testing.T) 
 		t.Fatalf("sampleLimit let a sample out with no pace credit left, held=%v", l.heldBack)
 	}
 }
+
+// TestAdaptStartsAtWhatTheOtherLaneGotThrough has a lane find the path queuing
+// right after the other lane of its peer carried a bulk and went quiet: it
+// starts at that lane's rate, not at its own first second.
+//
+// ai-generated: the whole test (second lane).
+func TestAdaptStartsAtWhatTheOtherLaneGotThrough(t *testing.T) {
+	p := &streamTransport{sendWindow: kcpSndWnd}
+	var path pathShare
+	now := monoNow() + int64(adaptEvery)
+	path.note(0, true, 2<<20, now)  // the data lane got 2 MiB/s through
+	path.note(0, false, 2<<20, now) // and went quiet
+	rtt := int32(150)
+	got := 0
+	conn := &kcpConn{}
+	l := &dataLane{
+		window: func(segments int) { got = segments },
+		srtt:   func() int32 { return rtt },
+		seen:   conn, path: &path, side: 1,
+	}
+	l.adapt(p, now)
+	rtt = 150 + int32(queueBudget/time.Millisecond) + 50 // its first burst queues
+	now += int64(adaptEvery)
+	l.pace.wrote(now, 1<<20)
+	conn.acked.Add(100)
+	l.adapt(p, now)
+	other := float64(2 << 20)
+	if want := int(2*other*0.15) / kcpMTU; got != want {
+		t.Fatalf("window=%d, want %d from the other lane's 2 MiB/s", got, want)
+	}
+	if want := queuePaceGain * other; l.qpace.rate != want {
+		t.Fatalf("queue pace %.0f, want %.0f", l.qpace.rate, want)
+	}
+	path.note(0, true, 2<<20, now) // both busy: no start on the other's rate
+	if best := path.recent(1, now); best != 0 {
+		t.Fatalf("recent=%.0f while the other lane is busy, want 0", best)
+	}
+}

@@ -59,6 +59,9 @@ type peerSession struct {
 	// soon as the scheduler picks it - a coin flip on every teardown.
 	done      chan struct{}
 	closeOnce sync.Once
+	// path is what the peer's data and second lanes share of their path.
+	// ai-generated (second lane).
+	path pathShare
 
 	controlMu sync.Mutex
 	control   *kcpRuntime
@@ -408,6 +411,7 @@ func (p *streamTransport) peerSessionFor(epoch uint32) *peerSession {
 		srtt:   data.sess.GetSRTT, // ai-generated: the adaptive window.
 		kick:   kick,
 		name:   "peer " + peerID,
+		path:   &sess.path,
 	}, sess.done)
 
 	return sess

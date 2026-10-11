@@ -66,6 +66,7 @@ func (p *streamTransport) startLane() {
 				}
 				return 0
 			},
+			path: &p.path, side: 1,
 		}, nil)
 	})
 }
@@ -172,6 +173,7 @@ func (p *streamTransport) laneOf(sess *peerSession) *kcpRuntime {
 		conn:   func() *kcpConn { return lane.conn },
 		window: func(segments int) { lane.sess.SetWindowSize(segments, 0) },
 		srtt:   lane.sess.GetSRTT,
+		path:   &sess.path, side: 1,
 	}, sess.done)
 	logger.Infof("vp8channel: second lane up for peer %s", peerID)
 	return lane

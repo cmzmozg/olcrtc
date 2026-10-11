@@ -39,7 +39,7 @@ func newWriterState(p *streamTransport) *writerState {
 		forceKeepaliveEvery: max(int(forceKeepalivePeriod/p.frameInterval), 1),
 		data: dataLane{
 			out: p.data.out, acks: p.data.acks, conn: p.dataConn, window: p.dataWindow, srtt: p.dataSRTT,
-			kick: p.data.kick, name: "data",
+			kick: p.data.kick, name: "data", path: &p.path,
 		},
 	}
 }

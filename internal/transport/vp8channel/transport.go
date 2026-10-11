@@ -166,6 +166,9 @@ type streamTransport struct {
 	laneOnData     atomic.Pointer[func([]byte)]
 	laneOnPeerData atomic.Pointer[func(peerID string, data []byte)]
 	laneOnce       sync.Once
+	// path is what the client's data and second lanes share of their path.
+	// ai-generated (second lane).
+	path pathShare
 	// datagram is the lossy lane: whole frames the writer sends as they are,
 	// bypassing KCP, after control and before bulk data (see datagram.go).
 	datagram chan []byte
