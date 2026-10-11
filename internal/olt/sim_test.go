@@ -32,6 +32,9 @@ type linkConfig struct {
 	// buffer in bytes; packets that do not fit are dropped.
 	rate  float64
 	queue int
+	// tick holds every packet for the next frame of a carrier that writes
+	// one frame per tick, after the bottleneck.
+	tick time.Duration
 }
 
 // simPkt is a packet on its way, due at at.
@@ -89,6 +92,7 @@ type simLink struct {
 	seq      uint64
 	sent     int
 	dropped  int
+	epoch    time.Time
 }
 
 // newLink starts a link that hands what survives to dst.
@@ -96,12 +100,13 @@ type simLink struct {
 // ai-generated: whole function.
 func newLink(cfg linkConfig, seed uint64, dst func([]byte)) *simLink {
 	l := &simLink{
-		cfg:  cfg,
-		dst:  dst,
-		wake: make(chan struct{}, 1),
-		stop: make(chan struct{}),
-		done: make(chan struct{}),
-		rng:  rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15)), //nolint:gosec // G404: test randomness
+		cfg:   cfg,
+		dst:   dst,
+		wake:  make(chan struct{}, 1),
+		stop:  make(chan struct{}),
+		done:  make(chan struct{}),
+		rng:   rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15)), //nolint:gosec // G404: test randomness
+		epoch: time.Now(),
 	}
 	go l.run()
 	return l
@@ -131,6 +136,11 @@ func (l *simLink) send(p []byte) error {
 		}
 		dep = start.Add(time.Duration(float64(len(p)) / l.cfg.rate * float64(time.Second)))
 		l.busy = dep
+	}
+	if t := l.cfg.tick; t > 0 {
+		if r := dep.Sub(l.epoch) % t; r != 0 {
+			dep = dep.Add(t - r)
+		}
 	}
 	at := dep.Add(l.cfg.delay)
 	if l.cfg.jitter > 0 {
@@ -254,13 +264,22 @@ type pair struct {
 // ai-generated: whole function.
 func newPair(t *testing.T, lc linkConfig, tweak func(cfg *Config)) *pair {
 	t.Helper()
+	return newPairLinks(t, lc, lc, tweak)
+}
+
+// newPairLinks is newPair with the uplink, client to server, shaped by ul
+// and the downlink by dl.
+//
+// ai-generated: whole function.
+func newPairLinks(t *testing.T, ul, dl linkConfig, tweak func(cfg *Config)) *pair {
+	t.Helper()
 	var cliP, srvP atomic.Pointer[Conn]
-	up := newLink(lc, 1, func(p []byte) {
+	up := newLink(ul, 1, func(p []byte) {
 		if c := srvP.Load(); c != nil {
 			c.Input(p)
 		}
 	})
-	down := newLink(lc, 2, func(p []byte) {
+	down := newLink(dl, 2, func(p []byte) {
 		if c := cliP.Load(); c != nil {
 			c.Input(p)
 		}

@@ -184,6 +184,13 @@ type sentPacket struct {
 	inFlight bool // asked for an acknowledgement and counts in flight
 	done     bool // acknowledged, lost or never in flight
 	probed   bool // its frames were queued again by a PTO
+	// lost marks a packet declared lost, at lostAt, lostGap numbers behind
+	// the largest acknowledged; spurious marks one acknowledged after all.
+	// A lost packet stays in the ring a while to be caught being late.
+	lost     bool
+	spurious bool
+	lostAt   time.Duration
+	lostGap  uint64
 	// Delivery-rate state at send time, as in the BBR draft.
 	delivered   int64
 	deliveredAt time.Duration
@@ -232,11 +239,16 @@ func (r *sentRing) at(pn uint64) *sentPacket {
 	return &r.pk[(r.head+int(pn-r.base))%len(r.pk)] //nolint:gosec // G115: pn-base < n
 }
 
-// popDone drops the finished packets at the front.
+// popDone drops the finished packets at the front; one declared lost stays
+// for keep after that, so a late acknowledgement still finds it.
 //
 // ai-generated: whole function.
-func (r *sentRing) popDone() {
-	for r.n > 0 && r.pk[r.head].done {
+func (r *sentRing) popDone(now, keep time.Duration) {
+	for r.n > 0 {
+		p := &r.pk[r.head]
+		if !p.done || (p.lost && now-p.lostAt < keep) {
+			return
+		}
 		r.head = (r.head + 1) % len(r.pk)
 		r.n--
 		r.base++

@@ -129,8 +129,9 @@ func TestIntegrity(t *testing.T) {
 	}
 }
 
-// bulkServer answers a stream that starts with 'B' with endless data and a
-// stream that starts with 'P' with an echo.
+// bulkServer answers a stream that starts with 'B' with endless data, one
+// that starts with 'U' by reading it all, and one that starts with 'P' with
+// an echo.
 //
 // ai-generated: whole function.
 func bulkServer(c *Conn) {
@@ -144,7 +145,11 @@ func bulkServer(c *Conn) {
 			if _, err := io.ReadFull(s, kind[:]); err != nil {
 				return
 			}
-			if kind[0] == 'P' {
+			switch kind[0] {
+			case 'U':
+				_, _ = io.Copy(io.Discard, s)
+				return
+			case 'P':
 				_, _ = io.Copy(s, s)
 				return
 			}
@@ -263,5 +268,93 @@ func TestThroughput(t *testing.T) {
 	}
 	if p50 := percentile(rtts, 0.5); p50 > rtt+100*time.Millisecond {
 		t.Fatalf("ping p50 %v over %v", p50, rtt+100*time.Millisecond)
+	}
+}
+
+// upload opens an upload stream and writes to it until the connection
+// closes, counting what it wrote into sent.
+//
+// ai-generated: whole function.
+func upload(t *testing.T, c *Conn, sent *atomic.Int64) {
+	t.Helper()
+	s, err := c.OpenStream()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Write([]byte{'U'}); err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		buf := make([]byte, 32<<10)
+		for {
+			n, err := s.Write(buf)
+			sent.Add(int64(n))
+			if err != nil {
+				return
+			}
+		}
+	}()
+}
+
+// TestFramedUpload runs a ping next to an upload over a carrier that
+// writes 30 frames a second into a 5 Mbit/s uplink with a 150-packet
+// buffer, as the netem stand does: the ping must stay within a frame of
+// the idle ping while the upload keeps most of the link. Acknowledgements
+// come in frames, so the window needs an allowance for them; the queue
+// trim keeps that allowance from turning into a standing queue, and small
+// streams go past the window.
+//
+// ai-generated: whole function.
+func TestFramedUpload(t *testing.T) {
+	frame := time.Second / 30
+	ul := linkConfig{delay: 40 * time.Millisecond, tick: frame, rate: 625e3, queue: 180 << 10}
+	dl := linkConfig{delay: 40 * time.Millisecond, tick: frame, rate: 5e6, queue: 4 << 20}
+	p := newPairLinks(t, ul, dl, func(cfg *Config) {
+		cfg.Tick, cfg.MaxPacket, cfg.BurstBytes = time.Second/60, 1090, 60<<10
+	})
+	go bulkServer(p.srv)
+	idle := pings(t, p.cli, 10, 50*time.Millisecond)
+	var sent atomic.Int64
+	upload(t, p.cli, &sent)
+	time.Sleep(2 * time.Second)
+	start, before := time.Now(), sent.Load()
+	rtts := pings(t, p.cli, 25, 100*time.Millisecond)
+	rate := float64(sent.Load()-before) / time.Since(start).Seconds()
+	_, drops := p.up.counts()
+	t.Logf("idle p50 %v; under upload p50 %v p90 %v; upload %.2f Mbit/s; uplink drops %d; client %+v",
+		percentile(idle, 0.5), percentile(rtts, 0.5), percentile(rtts, 0.9), rate*8/1e6, drops, p.cli.Stats())
+	if p50, limit := percentile(rtts, 0.5), percentile(idle, 0.5)+frame; p50 > limit {
+		t.Fatalf("ping p50 %v under upload, over %v", p50, limit)
+	}
+	if rate < 0.6*ul.rate {
+		t.Fatalf("upload at %.2f Mbit/s", rate*8/1e6)
+	}
+}
+
+// TestReorderAdapts holds 5% of the packets back by 3 ms: the losses olt
+// declares for them turn out spurious, and the packet threshold grows past
+// the reordering.
+//
+// ai-generated: whole function.
+func TestReorderAdapts(t *testing.T) {
+	p := newPair(t, linkConfig{
+		delay: 15 * time.Millisecond, reorder: 0.05, reorderDelay: 3 * time.Millisecond,
+		rate: 50e6 / 8, queue: 1 << 20,
+	}, nil)
+	go echo(p.srv)
+	data := make([]byte, 2<<20)
+	if err := exchange(p.cli, data); err != nil {
+		t.Fatal(err)
+	}
+	s := p.cli.Stats()
+	p.cli.mu.Lock()
+	reorder := p.cli.reorder
+	p.cli.mu.Unlock()
+	t.Logf("lost %d, spurious %d, packet threshold %d", s.PacketsLost, s.PacketsSpurious, reorder)
+	if s.PacketsSpurious == 0 || reorder <= pktThreshold {
+		t.Fatalf("spurious %d, threshold %d: no adaptation", s.PacketsSpurious, reorder)
+	}
+	if s.PacketsLost > 2*s.PacketsSpurious+10 {
+		t.Fatalf("lost %d, of them spurious %d: the threshold did not catch up", s.PacketsLost, s.PacketsSpurious)
 	}
 }

@@ -9,8 +9,14 @@ const (
 	ackDelayCap = 4 * maxAckDelay
 	// initialRTT stands in for the round trip until one is measured.
 	initialRTT = 100 * time.Millisecond
-	// pktThreshold is how many later packets acknowledged make one lost.
+	// pktThreshold is how many later packets acknowledged make one lost at
+	// first; maxReorder caps what spurious losses raise it to.
 	pktThreshold = 3
+	maxReorder   = 64
+	// initLossEighths is the time threshold at first, in eighths of an RTT;
+	// maxLossEighths caps what spurious losses raise it to.
+	initLossEighths = 9
+	maxLossEighths  = 16
 	// maxPTOBackoff caps the PTO doubling low: after an outage the tunnel
 	// should find the path again within seconds.
 	maxPTOBackoff = 4
@@ -95,6 +101,9 @@ func (c *Conn) onAck(now time.Duration, fr *frame, ranges []span) {
 		for pn := max(r.lo, base); pn < min(r.hi, end); pn++ {
 			p := c.sentq.at(pn)
 			if p.done {
+				if p.lost && !p.spurious {
+					c.spurious(p, largest)
+				}
 				continue
 			}
 			if pn == largest {
@@ -117,7 +126,7 @@ func (c *Conn) onAck(now time.Duration, fr *frame, ranges []span) {
 	c.ptoCount = 0
 	c.finishSample(&rs)
 	c.cc.onAck(now, &rs, c.inflight, c.delivered)
-	c.sentq.popDone()
+	c.sentq.popDone(now, c.rtt.smoothed())
 }
 
 // ackPacket handles one newly acknowledged packet.
@@ -158,8 +167,8 @@ func (c *Conn) finishSample(rs *rateSample) {
 	rs.valid = true
 }
 
-// detectLost declares lost the packets pktThreshold numbers or 9/8 of an
-// RTT behind the largest acknowledged, and arms the loss timer for the
+// detectLost declares lost the packets reorder numbers or lossEighths/8 of
+// an RTT behind the largest acknowledged, and arms the loss timer for the
 // next one that may become lost.
 //
 // ai-generated: whole function.
@@ -168,34 +177,52 @@ func (c *Conn) detectLost(now time.Duration) {
 	if !c.hasAcked {
 		return
 	}
-	delay := max(max(c.rtt.srtt, c.rtt.latest)*9/8, c.gran)
+	delay := max(max(c.rtt.srtt, c.rtt.latest)*time.Duration(c.lossEighths)/8, c.gran)
 	for pn := c.sentq.base; pn < c.largestAcked && pn < c.sentq.end(); pn++ {
 		p := c.sentq.at(pn)
 		if p.done {
 			continue
 		}
-		if c.largestAcked-pn >= pktThreshold || now-p.sentAt >= delay {
-			c.lose(p)
+		if c.largestAcked-pn >= c.reorder || now-p.sentAt >= delay {
+			c.lose(now, p)
 			continue
 		}
 		if c.lossAt == 0 {
 			c.lossAt = p.sentAt + delay
 		}
 	}
-	c.sentq.popDone()
+	c.sentq.popDone(now, c.rtt.smoothed())
 }
 
 // lose declares p lost and queues its frames again.
 //
 // ai-generated: whole function.
-func (c *Conn) lose(p *sentPacket) {
-	p.done = true
+func (c *Conn) lose(now time.Duration, p *sentPacket) {
+	p.done, p.lost, p.lostAt, p.lostGap = true, true, now, c.largestAcked-p.pn
 	c.inflight -= p.size
 	c.nLost++
 	c.cc.onLost(p.size)
 	for _, f := range p.frames {
 		c.frameLost(f)
 	}
+}
+
+// spurious adapts loss detection to a packet acknowledged after it was
+// declared lost, as the path reorders: the packet threshold grows past the
+// reordering seen, up to maxReorder, and a loss the timer declared stretches
+// the time threshold, up to two RTTs. Repairs below olt reorder: a parity
+// rebuilds a datagram after the rest of its group, and a retransmitted RTP
+// packet completes its frame late.
+//
+// ai-generated: whole function.
+func (c *Conn) spurious(p *sentPacket, largest uint64) {
+	p.spurious = true
+	c.nSpurious++
+	if p.lostGap >= c.reorder {
+		c.reorder = min(max(c.reorder, largest-p.pn+1), maxReorder)
+		return
+	}
+	c.lossEighths = min(c.lossEighths+2, maxLossEighths)
 }
 
 // ptoAt is when the probe timer fires, zero when nothing is in flight.

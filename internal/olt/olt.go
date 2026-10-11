@@ -106,8 +106,10 @@ type Stats struct {
 	// Cwnd and BytesInFlight are in bytes.
 	Cwnd, BytesInFlight int
 	// PacketsRetransmitted counts packets that carried resent stream data.
-	PacketsSent, PacketsLost, PacketsRetransmitted uint64
-	// State is the congestion controller state: startup, drain or probe_bw.
+	// PacketsSpurious counts packets declared lost and acknowledged later.
+	PacketsSent, PacketsLost, PacketsRetransmitted, PacketsSpurious uint64
+	// State is the congestion controller state: startup, drain, probe_bw
+	// or probe_rtt.
 	State string
 }
 
@@ -180,8 +182,14 @@ type Conn struct {
 	firstSentAt    time.Duration
 	appLimited     int64
 	build          builder
+	smallOnly      bool // this packet carries small streams past the window
 
-	nSent, nLost, nRetx uint64
+	// reorder and lossEighths are the loss thresholds, raised by spurious
+	// losses.
+	reorder     uint64
+	lossEighths int64
+
+	nSent, nLost, nRetx, nSpurious uint64
 }
 
 // New starts a connection. It sends nothing until there is something to
@@ -197,20 +205,22 @@ func New(cfg Config) (*Conn, error) {
 		return nil, fmt.Errorf("%w: MaxPacket %d is outside %d..%d", ErrConfig, cfg.MaxPacket, minPacket, maxPacket)
 	}
 	c := &Conn{
-		cfg:       cfg,
-		epoch:     time.Now(),
-		streamWin: u64(max(cfg.StreamWindow, initStreamWin)),
-		gran:      max(cfg.Tick, time.Millisecond),
-		wake:      make(chan struct{}, 1),
-		acceptCh:  make(chan struct{}, 1),
-		closedCh:  make(chan struct{}),
-		done:      make(chan struct{}),
-		batch:     make([][]byte, maxBatch),
-		streams:   make(map[uint32]*Stream),
-		nextID:    2,
-		sndMax:    initConnWin,
-		ackBuf:    make([]byte, 0, cfg.MaxPacket),
-		ackRanges: min(maxAckRanges, (cfg.MaxPacket-headerMax-ackFixed)/ackPerRange),
+		cfg:         cfg,
+		epoch:       time.Now(),
+		streamWin:   u64(max(cfg.StreamWindow, initStreamWin)),
+		gran:        max(cfg.Tick, time.Millisecond),
+		wake:        make(chan struct{}, 1),
+		acceptCh:    make(chan struct{}, 1),
+		closedCh:    make(chan struct{}),
+		done:        make(chan struct{}),
+		batch:       make([][]byte, maxBatch),
+		streams:     make(map[uint32]*Stream),
+		nextID:      2,
+		sndMax:      initConnWin,
+		ackBuf:      make([]byte, 0, cfg.MaxPacket),
+		ackRanges:   min(maxAckRanges, (cfg.MaxPacket-headerMax-ackFixed)/ackPerRange),
+		reorder:     pktThreshold,
+		lossEighths: initLossEighths,
 	}
 	c.connWin = max(u64(cfg.ConnWindow), c.streamWin, initConnWin)
 	c.rcvMax = c.connWin
@@ -356,6 +366,7 @@ func (c *Conn) Stats() Stats {
 		PacketsSent:          c.nSent,
 		PacketsLost:          c.nLost,
 		PacketsRetransmitted: c.nRetx,
+		PacketsSpurious:      c.nSpurious,
 		State:                c.cc.stateName(),
 	}
 }

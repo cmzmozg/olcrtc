@@ -17,9 +17,11 @@ const (
 	minStreamRoom = streamHeaderMax + 16
 	// paceTicks is the pacer's bucket, in carrier ticks at the pacing rate;
 	// it never holds more than two carrier bursts.
-	paceTicks = 4
+	paceTicks = 2
 	// initPaceTokens is the pacer's first bucket, in packets.
 	initPaceTokens = 10
+	// smallExtra is how far past the window small streams may go.
+	smallExtra = 32 << 10
 	// minWait keeps a loop that has nothing due from spinning.
 	minWait = 100 * time.Microsecond
 )
@@ -217,17 +219,40 @@ func (c *Conn) fill(now time.Duration) (int, int) {
 //
 // ai-generated: whole function.
 func (c *Conn) sendable(now time.Duration) int {
+	c.smallOnly = false
 	switch {
 	case c.probes > 0:
 		return stopNone
 	case !c.hasWork():
 		return stopNoData
-	case c.inflight >= c.cc.cwnd():
-		return stopCwnd
-	case !c.pace.ready(now):
-		return stopPacer
 	}
-	return stopNone
+	cwnd := c.cc.cwnd()
+	if c.inflight < cwnd && c.pace.ready(now) {
+		return stopNone
+	}
+	if c.inflight < cwnd+smallExtra && c.smallWaiting(now) {
+		c.smallOnly = true
+		return stopNone
+	}
+	if c.inflight >= cwnd {
+		return stopCwnd
+	}
+	return stopPacer
+}
+
+// smallWaiting reports whether a stream that sent little lately has new
+// data. Such data goes past the window and the pacer, up to smallExtra:
+// queued behind the bulk it would wait for the next acknowledgements, and
+// the carrier's frame queue after olt keeps no order of its own.
+//
+// ai-generated: whole function.
+func (c *Conn) smallWaiting(now time.Duration) bool {
+	for _, s := range c.sendq {
+		if s.small(now) && c.hasNew(s) {
+			return true
+		}
+	}
+	return false
 }
 
 // limited records an application-limited sender, which the bandwidth
@@ -273,7 +298,9 @@ func (c *Conn) packet(now time.Duration, buf []byte, cc bool, rate float64) ([]b
 	}
 	w.limit = c.cfg.MaxPacket - len(ack)
 	if cc {
-		c.appendRetx(w)
+		if !c.smallOnly {
+			c.appendRetx(w)
+		}
 		c.appendCtrl(w)
 		c.appendStreams(now, w)
 		if len(w.frames) == 0 && (c.probes > 0 || c.needPing) {
@@ -300,11 +327,11 @@ func (c *Conn) commit(now time.Duration, w *builder, elicit bool, rate float64) 
 	p := c.sentq.push(c.nextPN)
 	p.frames = append(p.frames[:0], w.frames...)
 	p.pn, p.sentAt, p.size = c.nextPN, now, len(w.b)
-	p.done, p.inFlight, p.probed = !elicit, elicit, false
+	p.done, p.inFlight, p.probed, p.lost, p.spurious = !elicit, elicit, false, false, false
 	c.nextPN++
 	c.nSent++
 	if !elicit {
-		c.sentq.popDone()
+		c.sentq.popDone(now, c.rtt.smoothed())
 		return
 	}
 	c.needPing = false
@@ -317,7 +344,7 @@ func (c *Conn) commit(now time.Duration, w *builder, elicit bool, rate float64) 
 	c.lastElicitSent = now
 	if c.probes > 0 {
 		c.probes--
-	} else {
+	} else if !c.smallOnly {
 		c.pace.spend(now, p.size, rate, c.cfg.Tick)
 	}
 	if w.retx {
@@ -499,14 +526,9 @@ func (c *Conn) appendStreams(now time.Duration, w *builder) {
 // ai-generated: whole function.
 func (c *Conn) pickStream(now time.Duration) *Stream {
 	for len(c.sendq) > 0 {
-		n := len(c.sendq)
-		start := c.rr % n
-		i := start
-		for k := range n {
-			if j := (start + k) % n; c.sendq[j].small(now) {
-				i = j
-				break
-			}
+		i, small := c.nextStream(now)
+		if c.smallOnly && !small {
+			return nil
 		}
 		s := c.sendq[i]
 		if c.hasNew(s) {
@@ -517,6 +539,21 @@ func (c *Conn) pickStream(now time.Duration) *Stream {
 		c.sendq = slices.Delete(c.sendq, i, i+1)
 	}
 	return nil
+}
+
+// nextStream returns the index of the next small stream in round-robin
+// order, or of the next stream when none is small.
+//
+// ai-generated: whole function.
+func (c *Conn) nextStream(now time.Duration) (int, bool) {
+	n := len(c.sendq)
+	start := c.rr % n
+	for k := range n {
+		if j := (start + k) % n; c.sendq[j].small(now) {
+			return j, true
+		}
+	}
+	return start, false
 }
 
 // hasNew reports whether s has new data the windows let out, or a FIN.
