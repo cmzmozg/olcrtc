@@ -64,7 +64,7 @@ func (s *Server) peerLane(peer *peerSession) *muxconn.Conn {
 	})
 	if session != nil {
 		logger.Infof("server: second lane session created peerID=%s", peer.peerID)
-		s.goTracked(func() { s.serveLane(peer, session) })
+		s.goTracked(func() { s.serveLane(peer, tunnelcore.WrapSmux(session)) })
 	}
 	return conn
 }
@@ -83,7 +83,7 @@ func (ps *peerSession) lane(build func() (*muxconn.Conn, *smux.Session)) (*muxco
 
 // serveLane serves the streams of a peer's second lane once its handshake
 // has landed, until the lane's session ends.
-func (s *Server) serveLane(peer *peerSession, session *smux.Session) {
+func (s *Server) serveLane(peer *peerSession, session tunnelcore.StreamSession) {
 	if peer.sessionReady != nil {
 		select {
 		case <-peer.sessionReady:

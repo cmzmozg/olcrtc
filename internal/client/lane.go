@@ -1,8 +1,6 @@
 package client
 
 import (
-	"github.com/xtaci/smux"
-
 	"github.com/openlibrecommunity/olcrtc/internal/handshake"
 	"github.com/openlibrecommunity/olcrtc/internal/logger"
 	"github.com/openlibrecommunity/olcrtc/internal/transport"
@@ -33,11 +31,12 @@ func (c *Client) attachLane(pair *tunnelcore.SessionPair, welcome handshake.Welc
 
 // streamSession is the session a new stream opens on: the second lane's,
 // when session has one up that carries less than session's own, else session.
-func (c *Client) streamSession(session *smux.Session) *smux.Session {
+func (c *Client) streamSession(session tunnelcore.StreamSession) tunnelcore.StreamSession {
 	c.sessMu.RLock()
 	pair := c.pair
 	c.sessMu.RUnlock()
-	if pair == nil || pair.DataSession != session || pair.LaneSession == nil || pair.LaneSession.IsClosed() {
+	if pair == nil || tunnelcore.WrapSmux(pair.DataSession) != session ||
+		pair.LaneSession == nil || pair.LaneSession.IsClosed() {
 		return session
 	}
 	lanes, ok := c.ln.(transport.LanePlane)
@@ -45,7 +44,7 @@ func (c *Client) streamSession(session *smux.Session) *smux.Session {
 		return session
 	}
 	if data, lane := lanes.LaneLoads(); lane < data {
-		return pair.LaneSession
+		return tunnelcore.WrapSmux(pair.LaneSession)
 	}
 	return session
 }

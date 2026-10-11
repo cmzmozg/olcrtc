@@ -835,8 +835,11 @@ func (c *Client) readyChannel() chan struct{} {
 
 // sessionSnapshot returns the live session together with the ready channel
 // that will fire when it is replaced, both read in one critical section.
-func (c *Client) sessionSnapshot() (*smux.Session, string, <-chan struct{}) {
+//
+// ai-generated: the session comes back as a tunnelcore.StreamSession, for the
+// data path.
+func (c *Client) sessionSnapshot() (tunnelcore.StreamSession, string, <-chan struct{}) {
 	c.sessMu.RLock()
 	defer c.sessMu.RUnlock()
-	return c.session, c.sessionID, c.sessionReady
+	return tunnelcore.WrapSmux(c.session), c.sessionID, c.sessionReady
 }

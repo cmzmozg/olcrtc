@@ -80,7 +80,8 @@ func (s *Server) serveSingle(ctx context.Context) {
 		if !ready && !s.acceptSingletonHandshake(ctx, session) {
 			continue
 		}
-		stream, err := session.AcceptStream()
+		// ai-generated: data streams are taken through tunnelcore.StreamSession.
+		stream, err := tunnelcore.WrapSmux(session).AcceptStream()
 		if err != nil {
 			if s.handleAcceptError(ctx, session, err) {
 				return
@@ -208,7 +209,7 @@ func (s *Server) acceptSingletonHandshake(ctx context.Context, session *smux.Ses
 	return true
 }
 
-func (s *Server) handleStream(ctx context.Context, stream *smux.Stream, sessionID string) {
+func (s *Server) handleStream(ctx context.Context, stream tunnelcore.Stream, sessionID string) {
 	defer func() { _ = stream.Close() }()
 	if sessionID == "" {
 		sessionID = s.currentSessionID()

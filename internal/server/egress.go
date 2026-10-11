@@ -12,8 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/xtaci/smux"
-
 	"github.com/openlibrecommunity/olcrtc/internal/logger"
 	"github.com/openlibrecommunity/olcrtc/internal/protect"
 	"github.com/openlibrecommunity/olcrtc/internal/tunnelcore"
@@ -195,7 +193,7 @@ func (r ConnectRequest) validate() error {
 }
 
 func (s *Server) dispatch(
-	ctx context.Context, stream *smux.Stream, request ConnectRequest, sessionID string, early []byte,
+	ctx context.Context, stream tunnelcore.Stream, request ConnectRequest, sessionID string, early []byte,
 ) {
 	// Where a peer connects is logged at debug only: an exit's log is no
 	// record of its users' destinations. A failure says why, not where.

@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/xtaci/smux"
 	"golang.org/x/net/dns/dnsmessage"
 
 	"github.com/openlibrecommunity/olcrtc/internal/logger"
+	"github.com/openlibrecommunity/olcrtc/internal/tunnelcore"
 	"github.com/openlibrecommunity/olcrtc/internal/udpwire"
 )
 
@@ -108,7 +108,7 @@ func (c *Client) announceDNSOverStream(sessionID, resolver string) {
 // only confuse it.
 func (c *Client) dnsQueryOverStream(
 	ctx context.Context,
-	sess *smux.Session,
+	sess tunnelcore.StreamSession,
 	udpConn *net.UDPConn,
 	client *net.UDPAddr,
 	target udpwire.Endpoint,

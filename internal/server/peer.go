@@ -524,7 +524,8 @@ func (s *Server) servePeer(peer *peerSession) {
 	if peer.sid() == "" && !s.establishPeerSession(peer) {
 		return
 	}
-	session := peer.dataSession()
+	// ai-generated: data streams are taken through tunnelcore.StreamSession.
+	session := tunnelcore.WrapSmux(peer.dataSession())
 	if session == nil {
 		return
 	}

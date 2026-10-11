@@ -39,20 +39,21 @@ func WrapSmux(session *smux.Session) StreamSession {
 	return SmuxSession{session}
 }
 
-// OpenStream opens an smux stream.
+// OpenStream opens an smux stream. The error is smux's own, as callers log it.
 func (s SmuxSession) OpenStream() (Stream, error) {
 	stream, err := s.Session.OpenStream()
 	if err != nil {
-		return nil, fmt.Errorf("smux open stream: %w", err)
+		return nil, err //nolint:wrapcheck // logged as smux reports it
 	}
 	return stream, nil
 }
 
-// AcceptStream accepts the peer's next smux stream.
+// AcceptStream accepts the peer's next smux stream. The error is smux's own,
+// as callers log it.
 func (s SmuxSession) AcceptStream() (Stream, error) {
 	stream, err := s.Session.AcceptStream()
 	if err != nil {
-		return nil, fmt.Errorf("smux accept stream: %w", err)
+		return nil, err //nolint:wrapcheck // logged as smux reports it
 	}
 	return stream, nil
 }

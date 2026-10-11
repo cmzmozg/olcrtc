@@ -9,8 +9,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/xtaci/smux"
-
 	"github.com/openlibrecommunity/olcrtc/internal/logger"
 	"github.com/openlibrecommunity/olcrtc/internal/runtime"
 	"github.com/openlibrecommunity/olcrtc/internal/tunnelcore"
@@ -61,7 +59,7 @@ type tunnelPrep struct {
 	reply  []byte
 }
 
-// tunnelStream is a stream carrying one CONNECT: the smux stream itself, or
+// tunnelStream is a stream carrying one CONNECT: the tunnel stream itself, or
 // an ackStream around it.
 type tunnelStream interface {
 	io.ReadWriteCloser
@@ -73,7 +71,7 @@ type tunnelStream interface {
 // to carry the CONNECT, or the reply its failure deserves.
 //
 // ai-generated: split out of tunnel() so the sniff can race it (#35).
-func (c *Client) openTunnel(session *smux.Session, job connectJob) tunnelPrep {
+func (c *Client) openTunnel(session tunnelcore.StreamSession, job connectJob) tunnelPrep {
 	stream, err := session.OpenStream()
 	if err != nil {
 		logger.Warnf("OpenStream failed: %v", err)
@@ -109,7 +107,7 @@ func (c *Client) pumpTunnel(ctx context.Context, conn net.Conn, stream tunnelStr
 // can fall back on, and the no-IPv6 latch keeps counting.
 //
 // ai-generated: the whole function (optimistic connect).
-func (c *Client) connectStream(stream *smux.Stream, targetAddr string, targetPort int) (tunnelStream, error) {
+func (c *Client) connectStream(stream tunnelcore.Stream, targetAddr string, targetPort int) (tunnelStream, error) {
 	if !c.earlyData.Load() || isIPv6Literal(targetAddr) {
 		if err := c.sendConnectRequest(stream, targetAddr, targetPort); err != nil {
 			return nil, err
@@ -122,14 +120,14 @@ func (c *Client) connectStream(stream *smux.Stream, targetAddr string, targetPor
 	return &ackStream{Stream: stream}, nil
 }
 
-func (c *Client) sendConnectRequest(stream *smux.Stream, targetAddr string, targetPort int) error {
+func (c *Client) sendConnectRequest(stream tunnelcore.Stream, targetAddr string, targetPort int) error {
 	if err := writeConnectRequest(stream, targetAddr, targetPort); err != nil {
 		return err
 	}
 	return readConnectAck(stream)
 }
 
-func writeConnectRequest(stream *smux.Stream, targetAddr string, targetPort int) error {
+func writeConnectRequest(stream tunnelcore.Stream, targetAddr string, targetPort int) error {
 	request, err := json.Marshal(map[string]any{
 		"cmd": "connect", "addr": targetAddr, "port": targetPort,
 	})
@@ -144,7 +142,7 @@ func writeConnectRequest(stream *smux.Stream, targetAddr string, targetPort int)
 	return nil
 }
 
-func readConnectAck(stream *smux.Stream) error {
+func readConnectAck(stream tunnelcore.Stream) error {
 	ack := make([]byte, 1)
 	_ = stream.SetReadDeadline(time.Now().Add(runtime.ConnectAckTimeout()))
 	if _, err := io.ReadFull(stream, ack); err != nil {
@@ -163,7 +161,7 @@ func readConnectAck(stream *smux.Stream) error {
 //
 // ai-generated: the whole type (optimistic connect).
 type ackStream struct {
-	*smux.Stream
+	tunnelcore.Stream
 	acked bool
 }
 
