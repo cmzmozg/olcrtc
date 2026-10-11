@@ -40,6 +40,10 @@ func epochCRC(token, src, dst uint32) uint32 {
 
 // parseEpochHeader returns (token, src, dst, ok). ok is false when the frame is
 // too short or the CRC does not validate.
+//
+// ai-generated: the CRC over the frame's own token, src and dst bytes, which
+// are epochCRC's input as they stand: its scratch array escaped, an allocation
+// for every frame received.
 func parseEpochHeader(frame []byte) (uint32, uint32, uint32, bool) {
 	if len(frame) < epochHdrLen {
 		return 0, 0, 0, false
@@ -48,7 +52,7 @@ func parseEpochHeader(frame []byte) (uint32, uint32, uint32, bool) {
 	src := binary.BigEndian.Uint32(frame[srcOff:dstOff])
 	dst := binary.BigEndian.Uint32(frame[dstOff:crcOff])
 	gotCRC := binary.BigEndian.Uint32(frame[crcOff:epochHdrLen])
-	return token, src, dst, gotCRC == epochCRC(token, src, dst)
+	return token, src, dst, gotCRC == crc32.ChecksumIEEE(frame[tokenOff:crcOff])
 }
 
 // bindingToken derives the session token stamped into every frame. It is the

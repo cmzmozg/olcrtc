@@ -172,6 +172,15 @@ type streamTransport struct {
 	// datagram is the lossy lane: whole frames the writer sends as they are,
 	// bypassing KCP, after control and before bulk data (see datagram.go).
 	datagram chan []byte
+	// vp8 is the track's VP8 payloader, which tells the writer the stride
+	// of the next sample. alignedPeer is the client's peer epoch whose
+	// keepalives advertised aligned frames. legacyWire makes the transport a
+	// build from before aligned frames, which neither advertises nor parses
+	// them; tests pair old and new builds with it. ai-generated: aligned
+	// frames.
+	vp8         *vp8Payloader
+	alignedPeer atomic.Uint32
+	legacyWire  bool
 
 	// onControlData / onPeerControlData are swapped in by the upper layer at
 	// any time and read on every received control frame, so they are atomic
@@ -243,6 +252,8 @@ type streamTransport struct {
 }
 
 // New creates a vp8channel transport backed by a provider engine.
+//
+// ai-generated: the track built by newVP8Track around the transport's payloader.
 func New(ctx context.Context, cfg transport.Config) (transport.Transport, error) {
 	opts, err := optionsFrom(cfg)
 	if err != nil {
@@ -266,15 +277,14 @@ func New(ctx context.Context, cfg transport.Config) (transport.Transport, error)
 		return nil, fmt.Errorf("open video session: %w", err)
 	}
 
-	track, err := common.NewVideoTrack(webrtc.RTPCodecCapability{
-		MimeType:  webrtc.MimeTypeVP8,
-		ClockRate: 90000,
-	}, "vp8channel")
+	vp8 := newVP8Payloader()
+	track, err := newVP8Track(vp8)
 	if err != nil {
-		return nil, fmt.Errorf("build video track: %w", err)
+		return nil, err
 	}
 
 	tr := newStreamTransport(stream, track, cfg, opts)
+	tr.vp8 = vp8
 
 	if err := stream.AddTrack(track); err != nil {
 		return nil, fmt.Errorf("attach local video track: %w", err)
@@ -284,6 +294,24 @@ func New(ctx context.Context, cfg transport.Config) (transport.Transport, error)
 	return tr, nil
 }
 
+// newVP8Track is the local video track the transport publishes, the one
+// common.NewVideoTrack builds, cut into RTP packets by vp8.
+//
+// ai-generated: the whole function (aligned frames).
+func newVP8Track(vp8 *vp8Payloader) (*webrtc.TrackLocalStaticSample, error) {
+	track, err := webrtc.NewTrackLocalStaticSample(
+		webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeVP8, ClockRate: 90000},
+		"vp8channel-"+common.RandomID(),
+		"olcrtc-"+common.RandomID(),
+		webrtc.WithPayloader(vp8.payloader),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("build video track: %w", err)
+	}
+	return track, nil
+}
+
+// ai-generated: vp8, a payloader of its own until New hands it the track's.
 func newStreamTransport(
 	stream videoSession,
 	track *webrtc.TrackLocalStaticSample,
@@ -304,6 +332,7 @@ func newStreamTransport(
 		onPeerDatagram:   cfg.OnPeerDatagram,
 		serverMode:       cfg.OnPeerData != nil,
 		datagram:         make(chan []byte, datagramQueueSize),
+		vp8:              newVP8Payloader(),
 		closeCh:          make(chan struct{}),
 		writerDone:       make(chan struct{}),
 		frameInterval:    time.Second / time.Duration(opts.FPS),

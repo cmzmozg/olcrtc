@@ -20,13 +20,19 @@ type writerState struct {
 	pendingControl *packetBuffer
 	// data carries the single-peer data queue (ai-generated: issue #12).
 	data dataLane
-	// pendingDatagram is a lossy sample that failed WriteSample, or the
-	// first datagram of the next route split off by batchDatagramSampleFrom.
+	// pendingDatagram is a legacy lossy sample built and not yet written: it
+	// failed WriteSample, or the pass that built it has yet to write it.
 	pendingDatagram []byte
 	// datagramBuf is the storage batchDatagramSampleFrom builds in. A sample
 	// in it is written, or kept as pendingDatagram and written first, before
 	// the next one is built (ai-generated: the reused buffer).
 	datagramBuf []byte
+	// carry is a queued datagram frame taken off the queue that did not fit
+	// the sample before it: another route, or a full sample. It starts the
+	// next one. aligned is the aligned frame being packed, or one packed and
+	// not yet written. ai-generated: aligned frames.
+	carry   []byte
+	aligned alignedTx
 }
 
 // newWriterState is writerLoop's bookkeeping for p.
@@ -69,9 +75,33 @@ func (w *writerState) writeSample(data []byte) bool {
 // sample's packetize+send atomic and keeps sequence numbers monotonic. Pion's
 // VP8 payloader copies sample.Data into RTP payloads during Packetize, before
 // WriteSample returns, so the writer can release its packet buffer afterward.
+//
+// ai-generated: the write split out into writeSampleHeld.
 func (p *streamTransport) writeSampleLocked(data []byte) bool {
 	p.writeMu.Lock()
 	defer p.writeMu.Unlock()
+	return p.writeSampleHeld(data)
+}
+
+// writeAligned lays tx out for the stride pion gives the next sample and
+// writes it, under writeMu, so no other sample moves the picture id between
+// the layout and the write.
+//
+// ai-generated: the whole function (aligned frames).
+func (p *streamTransport) writeAligned(tx *alignedTx) bool {
+	p.writeMu.Lock()
+	defer p.writeMu.Unlock()
+	if !p.writeSampleHeld(tx.layout(p.vp8.stride())) {
+		return false
+	}
+	tx.ready = false
+	return true
+}
+
+// writeSampleHeld writes one sample; the caller holds writeMu.
+//
+// ai-generated: split out of writeSampleLocked (aligned frames).
+func (p *streamTransport) writeSampleHeld(data []byte) bool {
 	// ai-generated: the charge and the written result (olcrtc#26). Every
 	// sample this transport publishes passes here, so this is where the rate
 	// the relay sees is counted - control frames and keepalives included,
@@ -104,12 +134,13 @@ func (p *streamTransport) readyToSend(frame []byte) bool {
 // and, receiving none within its decode-timeout (~40 s), stops forwarding the
 // track to subscribers. The periodic bare keyframe keeps the SFU's decoder
 // satisfied.
+//
+// ai-generated: writeKeepalive, with the aligned capability.
 func (w *writerState) forceKeepalive() {
 	w.ticksSinceKeepalive++
 	if w.ticksSinceKeepalive >= w.forceKeepaliveEvery {
 		w.ticksSinceKeepalive = 0
-		hdr := w.p.epochHeader()
-		_ = w.writeSample(hdr[:])
+		w.p.writeKeepalive()
 	}
 }
 
@@ -140,39 +171,88 @@ func (w *writerState) drainControl() bool {
 
 // drainDatagram sends queued lossy datagrams after control frames and before
 // reliable KCP data. Returns false when a sample must be retried next tick.
+//
+// ai-generated: the carry and the aligned frames.
 func (w *writerState) drainDatagram() bool {
+	for {
+		if !w.flushDatagram() {
+			return false
+		}
+		frame := w.carry
+		w.carry = nil
+		if frame == nil {
+			select {
+			case frame = <-w.p.datagram:
+			default:
+				return true
+			}
+		}
+		// ai-generated: the rate check (olcrtc#26). The lossy lane rides
+		// the same track as the bulk data and counts against the same
+		// ceiling, so it waits for the bucket like the bulk data does.
+		if !w.p.readyToSend(frame) {
+			w.carry = frame
+			return false
+		}
+		w.idleTicks = 0
+		if w.p.alignedTo(frame) {
+			w.packAligned(frame)
+		} else {
+			w.pendingDatagram = w.batchDatagramSampleFrom(w.p.datagram, frame)
+		}
+	}
+}
+
+// flushDatagram writes the sample drainDatagram built last and reports
+// whether it went out: an aligned frame, laid out only now for the stride the
+// next sample gets, or a legacy one.
+//
+// ai-generated: the whole function (aligned frames).
+func (w *writerState) flushDatagram() bool {
+	if w.aligned.ready && !w.p.writeAligned(&w.aligned) {
+		return false
+	}
 	if w.pendingDatagram != nil {
 		if !w.writeSample(w.pendingDatagram) {
 			return false
 		}
 		w.pendingDatagram = nil
 	}
-	for {
+	return true
+}
+
+// packAligned packs first and the datagrams queued behind it for the same
+// route into w.aligned, up to batchSize datagrams and alignedMaxData chunks.
+// One that does not fit, or goes elsewhere, is carried to the next sample.
+//
+// ai-generated: the whole function (aligned frames).
+func (w *writerState) packAligned(first []byte) {
+	tx := &w.aligned
+	tx.reset(first[:epochHdrLen])
+	tx.add(first[epochHdrLen+len(datagramMagic):])
+	for tx.records < w.p.batchSize {
+		var frame []byte
 		select {
-		case frame := <-w.p.datagram:
-			// ai-generated: the rate check (olcrtc#26). The lossy lane rides
-			// the same track as the bulk data and counts against the same
-			// ceiling, so it waits for the bucket like the bulk data does.
-			if !w.p.readyToSend(frame) {
-				w.pendingDatagram = frame
-				return false
-			}
-			sample := w.batchDatagramSampleFrom(w.p.datagram, frame)
-			w.idleTicks = 0
-			if !w.writeSample(sample) {
-				w.pendingDatagram = sample
-				return false
-			}
+		case frame = <-w.p.datagram:
 		default:
-			return true
+			tx.seal()
+			return
+		}
+		if !sameEpochHeader(first, frame) || !alignedFits(frame) ||
+			!tx.add(frame[epochHdrLen+len(datagramMagic):]) {
+			w.carry = frame
+			break
 		}
 	}
+	tx.seal()
 }
 
 // batchDatagramSampleFrom packs first and the datagrams queued behind it that
 // share its epoch header into one OLUB sample, up to batchSize packets and
 // defaultMaxPayloadSize bytes. A datagram bound elsewhere, or one that no
-// longer fits, waits in pendingDatagram for the next sample.
+// longer fits, is carried to the next sample.
+//
+// ai-generated: the carry in place of pendingDatagram.
 func (w *writerState) batchDatagramSampleFrom(src <-chan []byte, first []byte) []byte {
 	if len(first) <= epochHdrLen || w.p.batchSize <= 1 {
 		return first
@@ -188,12 +268,12 @@ func (w *writerState) batchDatagramSampleFrom(src <-chan []byte, first []byte) [
 		select {
 		case frame := <-src:
 			if !sameEpochHeader(first, frame) {
-				w.pendingDatagram = frame
+				w.carry = frame
 				return sample
 			}
 			payload := frame[epochHdrLen:]
 			if len(sample)+2+len(payload) > defaultMaxPayloadSize {
-				w.pendingDatagram = frame
+				w.carry = frame
 				return sample
 			}
 			sample = appendBatchPacket(sample, payload)
@@ -224,9 +304,24 @@ func (w *writerState) drainData() {
 	w.idleTicks++
 	if w.idleTicks >= w.keepaliveEvery {
 		w.idleTicks = 0
-		hdr := w.p.epochHeader()
-		_ = w.writeSample(hdr[:])
+		w.p.writeKeepalive() // ai-generated: with the aligned capability.
 	}
+}
+
+// writeKeepalive writes the bare frame that keeps the track and the peer
+// alive. A transport that parses aligned frames ends it with OLUC: a peer
+// learns from it that it may send them, and a build without them drops the
+// four bytes as a KCP packet that fails its CRC.
+//
+// ai-generated: the whole function (aligned frames).
+func (p *streamTransport) writeKeepalive() {
+	var frame [epochHdrLen + len(alignedCapMagic)]byte
+	hdr := p.epochHeader()
+	size := copy(frame[:], hdr[:])
+	if !p.legacyWire {
+		size += copy(frame[size:], alignedCapMagic[:])
+	}
+	_ = p.writeSampleLocked(frame[:size])
 }
 
 // dataConn is the single-peer data plane's KCP conn, nil while the plane is
@@ -349,8 +444,7 @@ func (p *streamTransport) peerWriterPump(lane dataLane, done <-chan struct{}) {
 			ticksSinceKeyframe++
 			if ticksSinceKeyframe >= keyframeEvery {
 				ticksSinceKeyframe = 0
-				hdr := p.epochHeader()
-				_ = p.writeSampleLocked(hdr[:])
+				p.writeKeepalive() // ai-generated: with the aligned capability.
 			}
 			lane.flush(p, p.writeSampleLocked)
 		}

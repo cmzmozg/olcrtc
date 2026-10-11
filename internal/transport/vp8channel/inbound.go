@@ -1,6 +1,7 @@
 package vp8channel
 
 import (
+	"bytes"
 	"time"
 
 	"github.com/openlibrecommunity/olcrtc/internal/logger"
@@ -8,6 +9,8 @@ import (
 
 // handleIncomingFrame parses the epoch header and delivers the KCP payload to
 // the plane it belongs to.
+//
+// ai-generated: the data epoch part moved to handleDataFrame.
 func (p *streamTransport) handleIncomingFrame(frame []byte) {
 	frameToken, src, dst, ok := parseEpochHeader(frame)
 	if !ok {
@@ -35,6 +38,21 @@ func (p *streamTransport) handleIncomingFrame(frame []byte) {
 		p.handleControlFrame(src, dst, kcpPayload)
 		return
 	}
+	p.handleDataFrame(src, frame)
+}
+
+// handleDataFrame routes a frame from a data epoch: datagrams to the datagram
+// callback, the rest to the peer's KCP. A keepalive that carries the aligned
+// capability makes its sender a peer for aligned frames and is otherwise a
+// bare keepalive.
+//
+// ai-generated: split out of handleIncomingFrame, with the aligned frames and
+// the capability.
+func (p *streamTransport) handleDataFrame(src uint32, frame []byte) {
+	if p.handleAlignedFrame(src, frame) {
+		return
+	}
+	kcpPayload := frame[epochHdrLen:]
 	if packets, ok := splitDatagramBatchPayload(kcpPayload); ok {
 		p.handleDatagramBatchFrame(src, packets)
 		return
@@ -43,13 +61,37 @@ func (p *streamTransport) handleIncomingFrame(frame []byte) {
 		p.handleDatagramFrame(src, payload)
 		return
 	}
+	capable := !p.legacyWire && bytes.Equal(kcpPayload, alignedCapMagic[:])
+	if capable {
+		kcpPayload = nil
+	}
 
 	if p.serverMode {
 		p.handlePeerFrame(src, kcpPayload)
+		if capable {
+			p.markAlignedPeer(src)
+		}
 		return
 	}
 
+	if capable {
+		p.alignedPeer.Store(src)
+	}
 	p.handleSinglePeerData(src, kcpPayload)
+}
+
+// admitsDatagram applies handleIncomingFrame's routing to the route of an
+// aligned frame salvaged packet by packet: whether src is a foreign data
+// epoch and dst is us.
+//
+// ai-generated: the whole function (aligned frames).
+func (p *streamTransport) admitsDatagram(src, dst uint32) bool {
+	local := p.localEpochValue()
+	if src == local || src&controlEpochFlag != 0 {
+		return false
+	}
+	p.peerSeen.Store(true)
+	return p.acceptsDst(dst)
 }
 
 // acceptsDst reports whether a frame addressed to dst is for us. dst==0 is a

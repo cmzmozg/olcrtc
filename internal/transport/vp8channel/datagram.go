@@ -13,7 +13,8 @@ import (
 // Lossy datagrams ride the same VP8 track as KCP, tagged so the receiver
 // hands them to the datagram callback instead of the KCP plane. A single
 // datagram is OLUD + payload; the writer packs several bound for the same
-// destination into OLUB + (uint16 length, datagram)*.
+// destination into OLUB + (uint16 length, datagram)*, or into an aligned
+// frame for a peer that parses those (aligned.go).
 //
 // ai-generated: datagram lane, ported from the fork onto the split writer.
 const datagramQueueSize = 4096
@@ -139,6 +140,45 @@ func (p *streamTransport) handleDatagramBatchFrame(src uint32, packets [][]byte)
 		if payload, ok := splitDatagramPayload(packet); ok {
 			p.handleDatagramFrame(src, payload)
 		}
+	}
+}
+
+// alignedTo reports whether a queued datagram frame goes out in an aligned
+// frame: its destination is a peer whose keepalives advertised them, and the
+// datagram fits a chunk. A broadcast reaches peers of any build, so it never
+// does.
+//
+// ai-generated: the whole function (aligned frames).
+func (p *streamTransport) alignedTo(frame []byte) bool {
+	if p.legacyWire || !alignedFits(frame) {
+		return false
+	}
+	dst := binary.BigEndian.Uint32(frame[dstOff:crcOff])
+	if dst == 0 {
+		return false
+	}
+	if !p.serverMode {
+		return dst == p.alignedPeer.Load()
+	}
+	sess := p.peers.lookup(dst)
+	return sess != nil && sess.aligned.Load()
+}
+
+// alignedFits reports whether a queued datagram frame holds a datagram of 1
+// to MaxAlignedDatagramSize bytes.
+//
+// ai-generated: the whole function (aligned frames).
+func alignedFits(frame []byte) bool {
+	size := len(frame) - epochHdrLen - len(datagramMagic)
+	return size > 0 && size <= MaxAlignedDatagramSize
+}
+
+// markAlignedPeer records that the server's peer epoch parses aligned frames.
+//
+// ai-generated: the whole function (aligned frames).
+func (p *streamTransport) markAlignedPeer(epoch uint32) {
+	if sess := p.peers.lookup(epoch); sess != nil {
+		sess.aligned.Store(true)
 	}
 }
 

@@ -278,6 +278,7 @@ func TestWriterBatchesDatagramsWithSameRoute(t *testing.T) {
 	assertDatagramPacketPayload(t, packets[1], "two")
 }
 
+// ai-generated: the carry in place of pendingDatagram.
 func TestWriterKeepsDifferentDatagramRoutesSeparate(t *testing.T) {
 	tr := newDatagramTestTransport(transport.Config{}, Options{BatchSize: 8})
 	first := mkDatagramFrame(tr.bindingToken, 0x200, 0x300, []byte("one"))
@@ -290,11 +291,11 @@ func TestWriterKeepsDifferentDatagramRoutesSeparate(t *testing.T) {
 	if !ok || len(packets) != 1 {
 		t.Fatalf("datagram batch packets=%d ok=%v, want 1/true", len(packets), ok)
 	}
-	if w.pendingDatagram == nil {
-		t.Fatal("pendingDatagram = nil, want second route queued for next tick")
+	if w.carry == nil {
+		t.Fatal("carry = nil, want the second route carried to the next sample")
 	}
-	if !sameEpochHeader(w.pendingDatagram, second) {
-		t.Fatal("pendingDatagram route changed")
+	if !sameEpochHeader(w.carry, second) {
+		t.Fatal("the carried route changed")
 	}
 	if w.batchDatagramSampleFrom(tr.datagram, first)[epochHdrLen] != datagramMagic[0] {
 		t.Fatal("a lone datagram was not sent as it is")

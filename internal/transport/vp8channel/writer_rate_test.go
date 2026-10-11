@@ -98,6 +98,7 @@ func TestWriterKeepsControlFramesFlowingWhileBulkWaits(t *testing.T) {
 	}
 }
 
+// ai-generated: the carry in place of pendingDatagram.
 func TestWriterHoldsDatagramsOverTheCeiling(t *testing.T) {
 	tr, written := ratedTransport(10_000, 1000)
 	tr.datagram = make(chan []byte, 4)
@@ -115,7 +116,7 @@ func TestWriterHoldsDatagramsOverTheCeiling(t *testing.T) {
 	if got := len(written()); got != 1 {
 		t.Fatalf("wrote %d datagram samples on an empty bucket, want 1", got)
 	}
-	if w.pendingDatagram == nil {
+	if w.carry == nil {
 		t.Fatal("the datagram that did not fit was dropped instead of held")
 	}
 

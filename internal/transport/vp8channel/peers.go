@@ -79,6 +79,10 @@ type peerSession struct {
 	// keepalive writes all the same.
 	// ai-generated: the field and its comment.
 	retired atomic.Bool
+
+	// aligned is set once the peer's keepalives advertise aligned datagram
+	// frames (ai-generated: aligned frames).
+	aligned atomic.Bool
 }
 
 // controlRuntime returns the peer's control KCP if one has been created.

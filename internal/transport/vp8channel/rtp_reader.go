@@ -89,6 +89,10 @@ type reorderBuffer struct {
 	ahead func([]*rtp.Packet)
 	taken map[uint16]struct{}
 	run   []*rtp.Packet
+	// claim, when set, sees every packet before it is held and takes the
+	// chunks of aligned datagram frames, which it delivers itself; drain
+	// steps over them (ai-generated: aligned frames).
+	claim func(*rtp.Packet) bool
 }
 
 func newReorderBuffer() *reorderBuffer {
@@ -102,6 +106,8 @@ func newReorderBuffer() *reorderBuffer {
 // sequence order. The caller reuses its read buffer, so buffered payloads are
 // copied into reorder-owned storage and recycled immediately after deliver
 // returns. deliver must not retain the packet.
+//
+// ai-generated: hold, which lets claim take aligned chunks.
 func (b *reorderBuffer) push(pkt *rtp.Packet, deliver func(*rtp.Packet)) {
 	if !b.started {
 		b.started = true
@@ -115,10 +121,7 @@ func (b *reorderBuffer) push(pkt *rtp.Packet, deliver func(*rtp.Packet)) {
 	if _, done := b.taken[pkt.SequenceNumber]; done {
 		return // a repair of a frame already delivered ahead
 	}
-	if old := b.pkts[pkt.SequenceNumber]; old != nil {
-		b.recycle(old)
-	}
-	b.pkts[pkt.SequenceNumber] = b.clone(pkt)
+	b.hold(pkt)
 
 	// Holding a full window behind a hole, or holding anything behind it for
 	// longer than reorderHold, means the head sequence is genuinely lost:
@@ -143,6 +146,41 @@ func (b *reorderBuffer) push(pkt *rtp.Packet, deliver func(*rtp.Packet)) {
 	case b.gapSince.IsZero():
 		b.gapSince = now
 	}
+}
+
+// hold stores pkt for drain, or marks it taken when claim delivered it.
+//
+// ai-generated: the whole function (aligned frames).
+func (b *reorderBuffer) hold(pkt *rtp.Packet) {
+	seq := pkt.SequenceNumber
+	if old := b.pkts[seq]; old != nil {
+		delete(b.pkts, seq)
+		b.recycle(old)
+	}
+	if b.claim != nil && b.claim(pkt) {
+		b.take(seq)
+		return
+	}
+	b.pkts[seq] = b.clone(pkt)
+}
+
+// take marks seq delivered out of band, for drain to step over; a copy held
+// for drain is dropped. A sequence behind the drain needs no mark.
+//
+// ai-generated: the whole function (aligned frames).
+func (b *reorderBuffer) take(seq uint16) {
+	if seqLess(seq, b.nextSeq) {
+		return
+	}
+	if held := b.pkts[seq]; held != nil {
+		delete(b.pkts, seq)
+		b.recycle(held)
+	}
+	if seq == b.nextSeq { // in order: drain goes on from the next one
+		b.nextSeq++
+		return
+	}
+	b.taken[seq] = struct{}{}
 }
 
 // held counts what waits on the gap, frames already taken ahead included.
@@ -347,27 +385,77 @@ func (p *streamTransport) drainTrack(track *webrtc.TrackRemote) {
 // common.REDPrimary.
 const mimeTypeRED = "video/red"
 
-// ai-generated: reuse the RTP parser and its header extension storage between reads.
-func (p *streamTransport) readVP8Track(track *webrtc.TrackRemote) {
-	red := strings.EqualFold(track.Codec().MimeType, mimeTypeRED)
-	var state, ahead vp8FrameState
-	var pkt rtp.Packet
-	reorder := newReorderBuffer()
-	reorder.ahead = func(run []*rtp.Packet) {
-		for _, ordered := range run {
-			if frame := ahead.processRTPPacket(ordered); frame != nil {
-				p.handleIncomingFrame(frame)
-			}
+// trackReader is what one remote track's reader keeps: the reorder buffer,
+// frame assembly in order and past a gap, and the aligned datagram frames it
+// salvages packet by packet.
+//
+// ai-generated: the whole type, split out of readVP8Track (aligned frames).
+type trackReader struct {
+	p            *streamTransport
+	reorder      *reorderBuffer
+	state, ahead vp8FrameState
+	aligned      alignedRx
+	frames       int
+	ordered      func(*rtp.Packet)
+}
+
+// newTrackReader builds p's reader state for one track.
+//
+// ai-generated: the whole function.
+func newTrackReader(p *streamTransport) *trackReader {
+	r := &trackReader{p: p, reorder: newReorderBuffer()}
+	r.reorder.ahead = r.deliverAhead
+	r.ordered = r.deliverOrdered
+	if !p.legacyWire {
+		r.aligned = alignedRx{p: p, reorder: r.reorder}
+		r.reorder.claim = r.aligned.claim
+	}
+	return r
+}
+
+// handleRTP takes one RTP packet of the track. Sequence order is restored
+// before assembly so SFU reordering is not mistaken for loss.
+//
+// ai-generated: the whole function.
+func (r *trackReader) handleRTP(pkt *rtp.Packet) {
+	r.reorder.push(pkt, r.ordered)
+}
+
+// deliverOrdered assembles frames from the packets drain hands on in order.
+//
+// ai-generated: the whole function, split out of readVP8Track.
+func (r *trackReader) deliverOrdered(pkt *rtp.Packet) {
+	if frame := r.state.processRTPPacket(pkt); frame != nil {
+		r.frames++
+		r.p.handleIncomingFrame(frame)
+	}
+}
+
+// deliverAhead assembles a whole frame taken past a gap.
+//
+// ai-generated: the whole function, split out of readVP8Track.
+func (r *trackReader) deliverAhead(run []*rtp.Packet) {
+	for _, pkt := range run {
+		if frame := r.ahead.processRTPPacket(pkt); frame != nil {
+			r.p.handleIncomingFrame(frame)
 		}
 	}
+}
+
+// ai-generated: reuse the RTP parser and its header extension storage between
+// reads; the per-track state moved to trackReader.
+func (p *streamTransport) readVP8Track(track *webrtc.TrackRemote) {
+	red := strings.EqualFold(track.Codec().MimeType, mimeTypeRED)
+	reader := newTrackReader(p)
+	var pkt rtp.Packet
 	buf := make([]byte, rtpBufSize)
-	var rtpCount, frameCount int
+	var rtpCount int
 
 	for {
 		n, _, err := track.Read(buf)
 		if err != nil {
 			logger.Infof("vp8channel: readVP8Track closed track=%s rtp=%d frames=%d err=%v",
-				track.ID(), rtpCount, frameCount, err)
+				track.ID(), rtpCount, reader.frames, err)
 			return
 		}
 		rtpCount++
@@ -383,16 +471,6 @@ func (p *streamTransport) readVP8Track(track *webrtc.TrackRemote) {
 			pkt.PayloadType = payloadType
 			pkt.Payload = data
 		}
-
-		// Restore sequence order before assembly so SFU reordering is not
-		// mistaken for loss.
-		reorder.push(&pkt, func(ordered *rtp.Packet) {
-			frame := state.processRTPPacket(ordered)
-			if frame == nil {
-				return
-			}
-			frameCount++
-			p.handleIncomingFrame(frame)
-		})
+		reader.handleRTP(&pkt)
 	}
 }
