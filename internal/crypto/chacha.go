@@ -33,7 +33,12 @@ const (
 	recordMagic         = "OLC2"
 	noncePrefixSize     = chacha20poly1305.NonceSizeX - 8
 	recordHeaderSize    = len(recordMagic) + 8 + noncePrefixSize
-	replayWindowSize    = 64
+	// replayWindowSize is how far below the highest counter a record may
+	// still arrive. ai-generated: 1024 (was 64) for the olt data plane, whose
+	// packets are sealed one by one and reach the peer in RTP order: a frame
+	// taken ahead past a gap, then the gap's repair, lands hundreds of
+	// records late at a thousand and more packets a second.
+	replayWindowSize = 1024
 	// Replay states across every lane and sender prefix. A peer now holds
 	// one per lane it uses (data, control, datagram), so a key shared by
 	// many peers needs room for a few hundred of them before the LRU
@@ -112,7 +117,7 @@ type replayState struct {
 	lane    string
 	prefix  [noncePrefixSize]byte
 	highest uint64
-	seen    uint64
+	seen    replayBits
 	element *list.Element
 	// skipped counts records jumped over when a higher counter arrived, and
 	// late those that arrived below the highest and were still inside the
@@ -327,11 +332,8 @@ func (r *replayCache) accept(aad []byte, prefix [noncePrefixSize]byte, counter u
 	if counter > state.highest {
 		shift := counter - state.highest
 		state.skipped += shift - 1
-		if shift >= replayWindowSize {
-			state.seen = 1
-		} else {
-			state.seen = state.seen<<shift | 1
-		}
+		state.seen.shift(shift)
+		state.seen.set(0)
 		state.highest = counter
 		r.lru.MoveToFront(state.element)
 		return nil
@@ -340,11 +342,10 @@ func (r *replayCache) accept(aad []byte, prefix [noncePrefixSize]byte, counter u
 	if age >= replayWindowSize {
 		return ErrReplayTooOld
 	}
-	mask := uint64(1) << age
-	if state.seen&mask != 0 {
+	if state.seen.has(age) {
 		return ErrReplayDuplicate
 	}
-	state.seen |= mask
+	state.seen.set(age)
 	state.late++
 	r.lru.MoveToFront(state.element)
 	return nil
@@ -376,7 +377,37 @@ func (r *replayCache) insert(aad []byte, prefix [noncePrefixSize]byte, counter u
 		senders = make(map[[noncePrefixSize]byte]*replayState)
 		r.lanes[lane] = senders
 	}
-	state := &replayState{lane: lane, prefix: prefix, highest: counter, seen: 1}
+	state := &replayState{lane: lane, prefix: prefix, highest: counter}
+	state.seen.set(0)
 	state.element = r.lru.PushFront(state)
 	senders[prefix] = state
 }
+
+// replayBits is a replay window: bit n set means the record n below the
+// highest counter has arrived.
+//
+// ai-generated: the whole type (a window wider than one word).
+type replayBits [replayWindowSize / 64]uint64
+
+// shift moves the window up by n records.
+func (b *replayBits) shift(n uint64) {
+	if n >= replayWindowSize {
+		*b = replayBits{}
+		return
+	}
+	words, bits := int(n/64), n%64
+	for i := len(b) - 1; i >= 0; i-- {
+		var v uint64
+		if j := i - words; j >= 0 {
+			v = b[j] << bits
+			if bits > 0 && j > 0 {
+				v |= b[j-1] >> (64 - bits)
+			}
+		}
+		b[i] = v
+	}
+}
+
+func (b *replayBits) set(age uint64) { b[age/64] |= 1 << (age % 64) }
+
+func (b *replayBits) has(age uint64) bool { return b[age/64]&(1<<(age%64)) != 0 }

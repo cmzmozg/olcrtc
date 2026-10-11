@@ -450,3 +450,44 @@ func TestReorderStatsTellLossFromReordering(t *testing.T) {
 		t.Fatalf("control lane ReorderStats = %+v, want zero", got)
 	}
 }
+
+// TestReplayBitsShiftAcrossWords checks the wide replay window against a
+// plain slice of flags for shifts within, across and past word boundaries.
+//
+// ai-generated: the whole test (a window wider than one word).
+func TestReplayBitsShiftAcrossWords(t *testing.T) {
+	var bits replayBits
+	model := make([]bool, replayWindowSize)
+	set := func(age uint64) {
+		bits.set(age)
+		model[age] = true
+	}
+	shift := func(n uint64) {
+		bits.shift(n)
+		next := make([]bool, replayWindowSize)
+		for age, ok := range model {
+			if ok && uint64(age)+n < replayWindowSize {
+				next[uint64(age)+n] = true
+			}
+		}
+		model = next
+	}
+	for _, age := range []uint64{0, 1, 63, 64, 65, 500, 1023} {
+		set(age)
+	}
+	for _, n := range []uint64{1, 63, 64, 65, 129, 7, 300} {
+		shift(n)
+		set(0)
+		for age, want := range model {
+			if got := bits.has(uint64(age)); got != want {
+				t.Fatalf("after shift %d: age %d has=%v, want %v", n, age, got, want)
+			}
+		}
+	}
+	shift(replayWindowSize)
+	for age := range uint64(replayWindowSize) {
+		if bits.has(age) {
+			t.Fatalf("age %d still set after a full shift", age)
+		}
+	}
+}
