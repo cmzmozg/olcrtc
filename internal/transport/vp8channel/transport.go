@@ -238,6 +238,9 @@ type streamTransport struct {
 	// write charges it; the bulk writers ask it first.
 	// ai-generated: this field (olcrtc#26).
 	limiter *common.PublishLimiter
+	// pacer spreads the server's RTP packets out (rtppace.go); nil on a
+	// client. ai-generated: this field.
+	pacer *rtpPacer
 	// sendWindow is the KCP send window every plane of this transport runs
 	// with: a round trip of the ceiling when there is one, the relay's own
 	// appetite when there is not. ai-generated: this field (olcrtc#26).
@@ -286,7 +289,13 @@ func New(ctx context.Context, cfg transport.Config) (transport.Transport, error)
 	tr := newStreamTransport(stream, track, cfg, opts)
 	tr.vp8 = vp8
 
-	if err := stream.AddTrack(track); err != nil {
+	// ai-generated: the paced track (rtp pacing on the server's track).
+	var local webrtc.TrackLocal = track
+	if tr.serverMode {
+		tr.pacer = newRTPPacer()
+		local = &pacedTrack{TrackLocalStaticSample: track, pacer: tr.pacer}
+	}
+	if err := stream.AddTrack(local); err != nil {
 		return nil, fmt.Errorf("attach local video track: %w", err)
 	}
 	stream.SetTrackHandler(tr.handleRemoteTrack)
@@ -396,6 +405,9 @@ func (p *streamTransport) Connect(ctx context.Context) error {
 		// only that side needs the reaper.
 		if p.serverMode {
 			go p.sweepPeers()
+		}
+		if p.pacer != nil { // ai-generated: the paced track.
+			go p.pacer.run(p.closeCh)
 		}
 	})
 
