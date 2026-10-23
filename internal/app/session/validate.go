@@ -91,10 +91,12 @@ func validateTransportRegistration(cfg Config) error {
 }
 
 func validateCommon(cfg Config) error {
-	if cfg.RoomID == "" && cfg.Provider != providerNone {
+	// ai-generated: the panel's rooms and keys (panel).
+	panelOnly := cfg.PanelManaged && cfg.KeyHex == "" && len(cfg.KeysHex) == 0
+	if cfg.RoomID == "" && cfg.Provider != providerNone && !cfg.PanelManaged {
 		return ErrRoomIDRequired
 	}
-	if err := validateKeys(cfg); err != nil {
+	if err := validateKeys(cfg); err != nil && !panelOnly {
 		return err
 	}
 	if cfg.DNSServer == "" && cfg.Resolver == nil {

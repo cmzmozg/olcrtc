@@ -1,0 +1,85 @@
+/* ai-generated: the whole file (panel). Tokens follow the Mirage panel. */
+
+:root {
+  --ground: #20242E; --ink: #ECEEF2; --ink-mute: #A4AAB6; --ink-faint: #646B78;
+  --hairline: #333947; --signal: #6E86FF; --on-signal: #20242E;
+  --good: #5FD39A; --warn: #E8C46B; --bad: #F27878;
+  --card: #262B36; --field: #1B1F28; --hover: #2C323F;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --ground: #EFEADB; --ink: #1A1A17; --ink-mute: #565249; --ink-faint: #9C968A;
+    --hairline: #D9D3C2; --signal: #1B36C9; --on-signal: #EFEADB;
+    --good: #17794F; --warn: #A8760C; --bad: #B3372F;
+    --card: #F7F3E8; --field: #E7E1CF; --hover: #E7E1CF;
+  }
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'SF Mono', 'SFMono-Regular', Consolas, Menlo, monospace;
+  background: var(--ground); color: var(--ink); font-size: 12px; min-height: 100vh;
+}
+
+.hidden { display: none !important; }
+.dim { color: var(--ink-faint); }
+.micro { font-size: 9px; letter-spacing: 0.14em; color: var(--ink-faint); margin-bottom: 10px; }
+.label { font-size: 9px; letter-spacing: 0.14em; color: var(--ink-faint); margin: 10px 0 4px; }
+.hint { font-size: 10px; color: var(--ink-faint); margin-top: 8px; line-height: 1.5; }
+.error { color: var(--bad); min-height: 14px; margin: 6px 0; font-size: 11px; }
+.mono { font-family: inherit; }
+
+.brand { font-size: 13px; letter-spacing: 0.2em; font-weight: 600; }
+
+.btn {
+  font: inherit; font-size: 10px; letter-spacing: 0.1em; padding: 7px 12px;
+  border: 1px solid var(--hairline); background: transparent; color: var(--ink); cursor: pointer;
+}
+.btn:hover { background: var(--hover); border-color: var(--ink-faint); }
+.btn-primary { background: var(--signal); border-color: var(--signal); color: var(--on-signal); }
+.btn-primary:hover { background: var(--signal); filter: brightness(1.1); }
+.btn-ghost { color: var(--ink-mute); }
+.btn-sm { padding: 4px 8px; font-size: 9px; }
+.btn-danger:hover { border-color: var(--bad); color: var(--bad); background: transparent; }
+
+.field {
+  font: inherit; font-size: 12px; padding: 7px 9px; min-width: 0;
+  border: 1px solid var(--hairline); background: var(--field); color: var(--ink);
+}
+.field:focus { outline: none; border-color: var(--signal); }
+.wide { flex: 1 1 260px; }
+
+.login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 16px; }
+.login-box { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 320px; }
+.login-box .brand { margin-bottom: 14px; }
+
+.app { max-width: 1100px; margin: 0 auto; padding: 16px; }
+.top { display: flex; align-items: center; justify-content: space-between; padding: 8px 0 12px; }
+.card { background: var(--card); border: 1px solid var(--hairline); padding: 14px; margin-bottom: 14px; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+
+.list { width: 100%; border-collapse: collapse; }
+.list th { text-align: left; font-size: 9px; letter-spacing: 0.14em; color: var(--ink-faint); font-weight: normal; padding: 6px 8px 6px 0; }
+.list td { padding: 7px 8px 7px 0; border-top: 1px solid var(--hairline); vertical-align: middle; }
+.list td.actions { text-align: right; white-space: nowrap; }
+.list td.actions .btn { margin-left: 4px; }
+.list tr.off td:not(.actions) { color: var(--ink-faint); }
+.cut { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.state::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 7px; vertical-align: middle; background: var(--ink-faint); }
+.state.up::before { background: var(--good); }
+.state.connecting::before, .state.down::before { background: var(--warn); }
+.state.error::before { background: var(--bad); }
+
+.link-row { margin-top: 8px; }
+
+@media (max-width: 700px) {
+  .list thead { display: none; }
+  .list tr { display: block; border-top: 1px solid var(--hairline); padding: 6px 0; }
+  .list td { display: block; border: none; padding: 2px 0; }
+  .list td.actions { text-align: left; }
+  .list td.actions .btn { margin: 4px 4px 0 0; }
+  .cut { max-width: 100%; }
+}

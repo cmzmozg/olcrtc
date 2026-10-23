@@ -82,6 +82,19 @@ type File struct {
 	Data     string    `yaml:"data"`
 	Debug    bool      `yaml:"debug"`
 	Stats    Stats     `yaml:"stats"`
+	Panel    Panel     `yaml:"panel"`
+}
+
+// Panel configures the server's web panel: rooms and client keys managed
+// from a browser. It is process-wide like stats. ai-generated (panel).
+type Panel struct {
+	Listen    string `yaml:"listen"`     // host:port; empty disables the panel
+	Path      string `yaml:"path"`       // secret URL prefix
+	Password  string `yaml:"password"`   // admin password
+	Store     string `yaml:"store"`      // rooms and clients, relative to the config; default panel.json
+	Cert      string `yaml:"cert"`       // TLS certificate, required off loopback
+	Key       string `yaml:"key"`        // TLS key
+	PublicURL string `yaml:"public_url"` // base of subscription links, e.g. https://vpn.example.com:8443
 }
 
 // Stats configures the server's loopback /stats listener. It is process-wide

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<!-- ai-generated: the whole file (panel). -->
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>olcrtc panel</title>
+<link rel="stylesheet" href="style.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+
+<div id="login-screen" class="login-screen hidden">
+  <form class="login-box" id="login-form">
+    <div class="brand">OLCRTC <span class="dim">PANEL</span></div>
+    <label class="label" for="login-pass">ПАРОЛЬ</label>
+    <input class="field" id="login-pass" type="password" autocomplete="current-password" required>
+    <button class="btn btn-primary" type="submit">ВОЙТИ</button>
+    <div class="error" id="login-error"></div>
+  </form>
+</div>
+
+<div id="app" class="app hidden">
+  <header class="top">
+    <div class="brand">OLCRTC <span class="dim">PANEL</span></div>
+    <button class="btn btn-ghost" id="logout">ВЫЙТИ</button>
+  </header>
+  <div class="error" id="app-error"></div>
+
+  <section class="card">
+    <div class="micro">КОМНАТЫ</div>
+    <form class="row" id="room-form">
+      <input class="field" id="room-name" placeholder="название" maxlength="64" required>
+      <select class="field" id="room-provider"></select>
+      <select class="field" id="room-transport"></select>
+      <input class="field wide" id="room-url" placeholder="ссылка на комнату, например https://vk.ru/call/join/...">
+      <button class="btn btn-primary" type="submit">ДОБАВИТЬ</button>
+      <button class="btn hidden" type="button" id="room-create">СОЗДАТЬ НА ПРОВАЙДЕРЕ</button>
+    </form>
+    <table class="list">
+      <thead><tr><th>НАЗВАНИЕ</th><th>ПРОВАЙДЕР</th><th>КОМНАТА</th><th>СОСТОЯНИЕ</th><th></th></tr></thead>
+      <tbody id="rooms"></tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <div class="micro">КЛИЕНТЫ</div>
+    <form class="row" id="client-form">
+      <input class="field" id="client-name" placeholder="имя устройства" maxlength="64" required>
+      <input class="field wide" id="client-note" placeholder="заметка">
+      <button class="btn btn-primary" type="submit">НОВЫЙ КЛИЕНТ</button>
+    </form>
+    <table class="list">
+      <thead><tr><th>ИМЯ</th><th>ТРАФИК ↓ / ↑</th><th>СОЗДАН</th><th>ЗАМЕТКА</th><th></th></tr></thead>
+      <tbody id="clients"></tbody>
+    </table>
+    <div class="hint">Трафик считается с запуска сервера.</div>
+  </section>
+
+  <section class="card hidden" id="links">
+    <div class="micro">ССЫЛКИ <span id="links-name"></span></div>
+    <div class="label">ПОДПИСКА</div>
+    <div class="row"><input class="field wide mono" id="links-sub" readonly><button class="btn copy" data-for="links-sub">КОПИРОВАТЬ</button></div>
+    <div id="links-list"></div>
+    <div class="hint">Подписка отдаёт ссылки на все включённые комнаты: новая комната дойдёт до клиента при следующем обновлении подписки. Не публикуйте ссылки: в каждой ключ клиента.</div>
+    <button class="btn btn-ghost" id="links-close">ЗАКРЫТЬ</button>
+  </section>
+</div>
+
+</body>
+</html>

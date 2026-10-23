@@ -87,6 +87,7 @@ Ready-made examples:
 | `data` | optional: directory holding `names`/`surnames` files that override the built-in display-name dictionaries. Resolved relative to the YAML file |
 | `debug` | verbose logging |
 | `stats.listen` | loopback address serving `GET /stats` with per-key byte totals, e.g. `127.0.0.1:9464`; empty disables |
+| `panel.*` | the server's web panel: rooms, client keys, links and subscriptions; see [panel.md](panel.md) |
 
 `crypto.key_file` is read relative to the YAML file. You cannot set `crypto.key` and `crypto.key_file` at the same time.
 

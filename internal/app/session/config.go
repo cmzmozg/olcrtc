@@ -6,6 +6,7 @@ import (
 
 	enginebuiltin "github.com/openlibrecommunity/olcrtc/internal/engine/builtin"
 	"github.com/openlibrecommunity/olcrtc/internal/protect"
+	"github.com/openlibrecommunity/olcrtc/internal/server"
 	"github.com/openlibrecommunity/olcrtc/internal/transport"
 	"github.com/openlibrecommunity/olcrtc/internal/transport/datachannel"
 	"github.com/openlibrecommunity/olcrtc/internal/transport/seichannel"
@@ -186,6 +187,14 @@ type Config struct {
 	//
 	// ai-generated: the field (egress hardening).
 	UnsafeAllowPrivateTargets bool
+	// PanelManaged says the web panel supplies the rooms and the keys, so
+	// room.id and crypto.key may be left out. KeySource, Meter and
+	// OnLinkState are what a panel room's server runs with (server.Config).
+	// None is read from YAML. ai-generated (panel).
+	PanelManaged bool
+	KeySource    *server.Keys
+	Meter        *server.Meter
+	OnLinkState  func(server.LinkState)
 }
 
 // RegisterDefaults registers built-in providers and transports.

@@ -129,6 +129,9 @@ func validateDocumentationConfig(t *testing.T, name string, file File) {
 		}
 		return
 	}
+	// ai-generated: a panel supplies rooms and keys, as session.RunPanel says
+	// before it validates (panel).
+	base.PanelManaged = file.Panel.Listen != ""
 	if err := session.Validate(session.ApplyDefaults(base)); err != nil {
 		t.Fatalf("Validate(%s): %v", name, err)
 	}

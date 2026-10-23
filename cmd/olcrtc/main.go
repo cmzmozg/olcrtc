@@ -25,6 +25,7 @@ import (
 	configpkg "github.com/openlibrecommunity/olcrtc/internal/config"
 	"github.com/openlibrecommunity/olcrtc/internal/logger"
 	"github.com/openlibrecommunity/olcrtc/internal/names"
+	"github.com/openlibrecommunity/olcrtc/internal/panel"
 	"github.com/openlibrecommunity/olcrtc/internal/supervisor"
 )
 
@@ -36,6 +37,13 @@ var ErrConfigPathRequired = errors.New("usage: olcrtc <config.yaml>")
 
 // ErrProfilesUnsupportedForGen is returned when failover profiles are configured for gen mode.
 var ErrProfilesUnsupportedForGen = errors.New("profiles are only supported for srv and cnc modes")
+
+// ErrPanelMode is returned for a panel outside a single-profile server.
+// ai-generated (panel).
+var ErrPanelMode = errors.New("panel needs mode srv without profiles")
+
+// defaultPanelStore is the panel's store, next to the config.
+const defaultPanelStore = "panel.json"
 
 //nolint:gochecknoglobals // Tests replace the long-running session runner with a bounded function.
 var runSession = session.Run
@@ -50,6 +58,9 @@ type loadedConfig struct {
 	failover failoverConfig
 	dataDir  string
 	debug    bool
+	// panel is the web panel's settings, its paths resolved against the
+	// config's directory; nil without panel.listen. ai-generated (panel).
+	panel *panel.Options
 	// reload re-reads the config file for the current failover profiles, so
 	// the supervisor picks up rooms added while a session was live.
 	//
@@ -131,6 +142,7 @@ func loadConfig(path string) (loadedConfig, error) {
 		failover: failover,
 		dataDir:  resolveDataDir(path, file.Data),
 		debug:    file.Debug,
+		panel:    panelOptions(path, file.Panel),
 		reload:   func() ([]supervisor.Profile, error) { return loadProfiles(path) },
 	}, nil
 }
@@ -167,6 +179,30 @@ func loadProfiles(path string) ([]supervisor.Profile, error) {
 	return profiles, nil
 }
 
+// panelOptions is the panel's settings with its files resolved against the
+// config's directory, or nil when panel.listen is empty.
+//
+// ai-generated: the whole function (panel).
+func panelOptions(configPath string, p configpkg.Panel) *panel.Options {
+	if p.Listen == "" {
+		return nil
+	}
+	near := func(file string) string {
+		if file == "" || filepath.IsAbs(file) {
+			return file
+		}
+		return filepath.Join(filepath.Dir(configPath), file)
+	}
+	store := p.Store
+	if store == "" {
+		store = defaultPanelStore
+	}
+	return &panel.Options{
+		Listen: p.Listen, Path: p.Path, Password: p.Password, PublicURL: p.PublicURL,
+		Cert: near(p.Cert), Key: near(p.Key), Store: near(store),
+	}
+}
+
 func parseFailoverConfig(f configpkg.Failover) (failoverConfig, error) {
 	retryDelay := supervisor.DefaultRetryDelay
 
@@ -186,6 +222,18 @@ func runWithConfig(cfg loadedConfig) error {
 	configureLogging(cfg.debug)
 
 	scfg := session.ApplyDefaults(cfg.scfg)
+
+	if cfg.panel != nil { // ai-generated (panel).
+		if scfg.Mode != session.ModeSrv || len(cfg.profiles) > 0 {
+			return ErrPanelMode
+		}
+		if err := loadNameOverrides(cfg.dataDir); err != nil {
+			return err
+		}
+		return runManaged(func(ctx context.Context) error {
+			return session.RunPanel(ctx, scfg, *cfg.panel)
+		})
+	}
 
 	if scfg.Mode == session.ModeGen {
 		if len(cfg.profiles) > 0 {

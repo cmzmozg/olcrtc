@@ -95,6 +95,8 @@ func runServer(
 		TransportOptions: opts, Engine: cfg.Engine, URL: cfg.URL, Token: cfg.Token,
 		ProviderToken: cfg.ProviderToken, Liveness: liveness, Traffic: traffic,
 		UnsafeAllowPrivateTargets: cfg.UnsafeAllowPrivateTargets, // ai-generated (egress hardening)
+		// ai-generated: the panel's ring, meter and link callback (panel).
+		KeySource: cfg.KeySource, Meter: cfg.Meter, OnLinkState: cfg.OnLinkState,
 		OnSessionOpen: func(sessionID, deviceID string, claims map[string]any) {
 			logger.Infof("session opened: id=%s device=%s claims=%v", sessionID, deviceID, claims)
 		},

@@ -118,6 +118,7 @@ Full instructions are in [docs/fast.md](docs/fast.md) and [docs/manual.md](docs/
 - [settings.md](docs/settings.md) - compatibility matrix
 - [uri.md](docs/uri.md) - client URI format
 - [sub.md](docs/sub.md) - subscription format
+- [panel.md](docs/panel.md) - server web panel: rooms, keys, links, subscriptions, install
 - [gate.md](docs/gate.md) - release gate: the tunnel under load on real relays, and its report
 
 ## Build
