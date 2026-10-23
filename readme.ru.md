@@ -78,6 +78,19 @@ IPv6-only оператору, и NAT64 в App Review.
 
 Словари display name встроены в бинарник. Необязательное поле YAML `data` может указать каталог с файлами `names` и `surnames` для их замены.
 
+## Сервер и публичная панель в Docker
+
+<!-- // ai-generated: link and commands for the public HTTPS Docker installer. -->
+[Интерактивная установка Docker-образа](docs/docker.ru.md): определение публичного
+IP, использование сертификата VPS или выпуск Let's Encrypt, уникальная HTTPS-ссылка
+и пароль панели. Go на сервере не нужен.
+
+```bash
+# // ai-generated: download and run the Docker server installer.
+curl -fsSL https://raw.githubusercontent.com/cmzmozg/olcrtc/proofkit/scripts/install-docker.sh -o install-docker.sh
+sudo bash install-docker.sh
+```
+
 ## Установка в один клик
 
 ```sh

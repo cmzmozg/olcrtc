@@ -1,0 +1,71 @@
+# // ai-generated: test the installer before publishing amd64 and arm64 images.
+name: Docker server
+
+on:
+  push:
+    branches: [proofkit]
+  pull_request:
+    branches: [proofkit]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Check shell scripts
+        run: shellcheck -x -P SCRIPTDIR scripts/install-docker.sh scripts/test-docker.sh
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: olcrtc:docker-test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Test HTTPS, persistent clients, updates and TLS renewal
+        run: sudo env OLCRTC_TEST_IMAGE=olcrtc:docker-test bash scripts/test-docker.sh
+
+  publish:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/proofkit'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Image metadata
+        id: meta
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          echo "image=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}:latest
+            ${{ steps.meta.outputs.image }}:sha-${{ steps.meta.outputs.revision }}
+          labels: |
+            org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

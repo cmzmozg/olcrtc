@@ -97,6 +97,19 @@ Current builds use OLC2 encryption with directional HKDF-SHA256 keys, separate d
 
 Display-name dictionaries are embedded. Set optional YAML field `data` to a directory containing `names` and `surnames` to override them.
 
+## Сервер и публичная панель в Docker
+
+<!-- // ai-generated: link and commands for the public HTTPS Docker installer. -->
+[Интерактивная установка Docker-образа](docs/docker.ru.md): определение публичного
+IP, использование сертификата VPS или выпуск Let's Encrypt, уникальная HTTPS-ссылка
+и пароль панели. Go на сервере не нужен.
+
+```bash
+# // ai-generated: download and run the Docker server installer.
+curl -fsSL https://raw.githubusercontent.com/cmzmozg/olcrtc/proofkit/scripts/install-docker.sh -o install-docker.sh
+sudo bash install-docker.sh
+```
+
 ## One-click install
 
 ```sh

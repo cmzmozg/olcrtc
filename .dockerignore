@@ -1,0 +1,15 @@
+# // ai-generated: allow only server build inputs into the image context.
+**
+!go.mod
+!go.sum
+!magefile.go
+!cmd/
+!cmd/**
+!internal/
+!internal/**
+!pkg/
+!pkg/**
+!LICENSE
+!NOTICE
+!docs/
+!docs/upstream-license-wtfpl.txt
