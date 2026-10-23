@@ -139,6 +139,12 @@ for _ in {1..20}; do
     sleep 1
 done
 curl --cacert "$STAGE/cert.pem" -s "https://127.0.0.1:$PORT/" -o /dev/null
+# // ai-generated: certificate sync must respect an explicitly stopped server.
+bash "$ROOT/scripts/install-docker.sh" --yes --action stop --dir "$INSTALL" >"$STAGE/stop.log" 2>&1
+openssl x509 -in "$STAGE/cert.pem" -signkey "$STAGE/key.pem" -set_serial 123 -days 2 -out "$STAGE/rotated.pem"
+mv "$STAGE/rotated.pem" "$STAGE/cert.pem"
+bash "$ROOT/scripts/install-docker.sh" --yes --action renew --dir "$INSTALL" >"$STAGE/stopped-renew.log" 2>&1
+[[ -z $(docker compose --project-directory "$INSTALL" -f "$INSTALL/compose.yaml" ps -q --status running server) ]]
 bash "$ROOT/scripts/install-docker.sh" --yes --action uninstall --dir "$INSTALL" >"$STAGE/uninstall.log" 2>&1
 [[ $(sha256sum "$INSTALL/data/panel.json") == "$store_hash" ]]
 echo 'Docker HTTPS, persistent clients, update rollback and TLS sync: OK'

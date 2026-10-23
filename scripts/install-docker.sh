@@ -230,7 +230,9 @@ sync_tls() {
     install -m 600 -o 10001 -g 10001 "$KEY" "$DIR/data/panel.key.new"
     mv -f "$DIR/data/panel.crt.new" "$DIR/data/panel.crt"
     mv -f "$DIR/data/panel.key.new" "$DIR/data/panel.key"
-    if [[ -f $DIR/compose.yaml ]]; then compose restart server; fi
+    if [[ -f $DIR/compose.yaml ]] && [[ -n $(compose ps -q --status running server) ]]; then
+        compose restart server
+    fi
 }
 
 # // ai-generated: write_compose persists the selected image and runtime settings.
