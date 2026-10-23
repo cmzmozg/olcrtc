@@ -150,8 +150,8 @@ type linkRig struct {
 func newLinkRig(t *testing.T, link *linkStub) *linkRig {
 	t.Helper()
 	srv := &Server{
-		ring:         crypto.SingleEntry(newServerTestKeys(t), ""),
-		meter:        newMeter(),
+		keys:         staticKeys(crypto.SingleEntry(newServerTestKeys(t), "")),
+		meter:        NewMeter(),
 		health:       runtime.NewHealthTracker(nil),
 		onClose:      func(string, string) {},
 		peerSessions: make(map[string]*peerSession),

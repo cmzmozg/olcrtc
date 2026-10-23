@@ -73,7 +73,7 @@ func (s *Server) bringUpLink(ctx context.Context, cfg Config, cancel context.Can
 }
 
 func (s *Server) installSession() {
-	group := muxconn.NewPinGroup(s.ring)
+	group := muxconn.NewPinGroup(s.keys.Ring())
 	pair, err := tunnelcore.NewSessionPairGrouped(s.ln, group, tunnelcore.ServerRole)
 	if pair == nil {
 		logger.Warnf("smux server init failed: %v", err)
@@ -98,7 +98,7 @@ func (s *Server) installControlSession(ctx context.Context) {
 		s.installPeerLanePlane()
 		return
 	}
-	group := muxconn.NewPinGroup(s.ring)
+	group := muxconn.NewPinGroup(s.keys.Ring())
 	conn, session, err := tunnelcore.NewControlSessionGrouped(s.ln, group, tunnelcore.ServerRole)
 	if err != nil {
 		logger.Warnf("control smux server init failed (peer-routing): %v", err)
@@ -200,7 +200,7 @@ func (s *Server) reinstallSession(ctx context.Context, dead *smux.Session) {
 	s.sessMu.RUnlock()
 	// A fresh group per generation: the peer that comes back may hold
 	// another key than the one that left.
-	group := muxconn.NewPinGroup(s.ring)
+	group := muxconn.NewPinGroup(s.keys.Ring())
 	replacement, err := tunnelcore.NewSessionPairGrouped(s.ln, group, tunnelcore.ServerRole)
 	if replacement == nil {
 		logger.Warnf("smux server re-init failed: %v", err)

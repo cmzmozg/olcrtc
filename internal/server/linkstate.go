@@ -39,4 +39,7 @@ func (s *Server) LinkState() LinkState {
 // setLinkState records a carrier-session transition.
 func (s *Server) setLinkState(state LinkState) {
 	s.link.Store(&state)
+	if s.onLink != nil { // ai-generated (panel).
+		s.onLink(state)
+	}
 }

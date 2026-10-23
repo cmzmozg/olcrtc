@@ -326,7 +326,7 @@ func TestShutdownClosesLinkAndConn(t *testing.T) {
 	ln := &serverLinkStub{}
 	s := &Server{
 		ln:   ln,
-		ring: cryptopkg.SingleEntry(keys, ""),
+		keys: staticKeys(cryptopkg.SingleEntry(keys, "")),
 		conn: muxconn.New(ln, keys),
 	}
 	s.shutdown()
@@ -463,7 +463,7 @@ func TestReinstallSessionFiresOnClose(t *testing.T) {
 	}
 	s := &Server{
 		ln:        &serverLinkStub{},
-		ring:      cryptopkg.SingleEntry(keys, ""),
+		keys:      staticKeys(cryptopkg.SingleEntry(keys, "")),
 		sessionID: "sid-123",
 		deviceID:  "dev-123",
 		onClose:   func(sid, reason string) { got.sid = sid; got.reason = reason },
@@ -589,7 +589,7 @@ func TestStartControlLoopResetsPeerBeforeReinstall(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
 		ln:      ln,
-		ring:    cryptopkg.SingleEntry(keys, ""),
+		keys:    staticKeys(cryptopkg.SingleEntry(keys, "")),
 		conn:    muxconn.New(ln, keys),
 		session: serverSess,
 		health:  runtime.NewHealthTracker(nil),
@@ -759,7 +759,7 @@ func TestReinstallSessionClosesOldConnBeforeSwap(t *testing.T) {
 	}
 	s := &Server{
 		ln:           ln,
-		ring:         cryptopkg.SingleEntry(keys, ""),
+		keys:         staticKeys(cryptopkg.SingleEntry(keys, "")),
 		conn:         conn,
 		session:      sess,
 		onClose:      func(string, string) {},
@@ -852,7 +852,7 @@ func TestAcceptSingletonHandshakeStoresServerFields(t *testing.T) {
 
 	s := newHandshakeServer()
 	s.liveness = control.Config{Interval: time.Hour, Timeout: time.Hour, Failures: 1}
-	s.meter = newMeter()
+	s.meter = NewMeter()
 	s.group = muxconn.PrePinned(newServerTestKeys(t), "key-single")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
@@ -886,7 +886,7 @@ func TestAcceptSingletonHandshakeStoresServerFields(t *testing.T) {
 }
 
 // meteredKey reports which key id the meter attributes sessionID to.
-func meteredKey(m *meter, sessionID string) string {
+func meteredKey(m *Meter, sessionID string) string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.sessionKey[sessionID]
@@ -902,7 +902,7 @@ func TestEstablishPeerSessionBindsTheMeterToThePinnedKey(t *testing.T) {
 
 	s := newHandshakeServer()
 	s.liveness = control.Config{Interval: time.Hour, Timeout: time.Hour, Failures: 1}
-	s.meter = newMeter()
+	s.meter = NewMeter()
 	ctx, cancel := context.WithCancel(context.Background())
 	s.baseCtx = ctx
 	defer func() {
@@ -944,7 +944,7 @@ func TestPeerSessionConcurrentAccess(t *testing.T) {
 	ln := &serverLinkStub{}
 	s := &Server{
 		ln:           ln,
-		ring:         cryptopkg.SingleEntry(keys, ""),
+		keys:         staticKeys(cryptopkg.SingleEntry(keys, "")),
 		onClose:      func(string, string) {},
 		health:       runtime.NewHealthTracker(nil),
 		peerSessions: make(map[string]*peerSession),
@@ -1136,7 +1136,7 @@ func TestServeSingleWakesOnSessionInstall(t *testing.T) {
 	keys := newServerTestKeys(t)
 	s := &Server{
 		ln:           &serverLinkStub{},
-		ring:         cryptopkg.SingleEntry(keys, ""),
+		keys:         staticKeys(cryptopkg.SingleEntry(keys, "")),
 		sessionID:    "sid-serve",
 		resolver:     net.DefaultResolver,
 		onClose:      func(string, string) {},

@@ -82,6 +82,20 @@ func SingleEntry(keys *KeySet, keyID string) *KeyRing {
 	return &KeyRing{entries: []RingEntry{{Keys: keys, KeyID: keyID}}}
 }
 
+// EmptyKeyRing is a ring no record opens under: a panel-managed server with
+// no clients yet pairs nobody. ai-generated (panel).
+func EmptyKeyRing() *KeyRing { return &KeyRing{} }
+
+// Has reports whether keyID names an entry of the ring. ai-generated (panel).
+func (r *KeyRing) Has(keyID string) bool {
+	for i := range r.entries {
+		if r.entries[i].KeyID == keyID {
+			return true
+		}
+	}
+	return false
+}
+
 // Len reports the number of entries.
 func (r *KeyRing) Len() int { return len(r.entries) }
 

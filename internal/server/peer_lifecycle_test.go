@@ -33,7 +33,7 @@ func newPeerLifecycleServer(t *testing.T) (*Server, func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 	link := &peerControlRoutingStub{}
 	s := &Server{
-		baseCtx: ctx, ln: link, peerLn: link, ring: crypto.SingleEntry(newServerTestKeys(t), ""),
+		baseCtx: ctx, ln: link, peerLn: link, keys: staticKeys(crypto.SingleEntry(newServerTestKeys(t), "")),
 		authHook: defaultAuthHook, onOpen: func(string, string, map[string]any) {},
 		onClose: func(string, string) {}, health: runtime.NewHealthTracker(nil),
 		peerSessions: make(map[string]*peerSession), peerStats: make(map[string]peerStat),

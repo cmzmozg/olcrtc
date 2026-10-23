@@ -57,9 +57,10 @@ type Server struct {
 	baseCtx context.Context //nolint:containedctx // server-lifetime context for reconnect goroutines
 	ln      transport.Transport
 	peerLn  transport.PeerTransport
-	// ring holds every key a peer may pair under; group is the pin group of
+	// keys holds every key a peer may pair under; group is the pin group of
 	// the current single-link session generation (nil in peer routing).
-	ring  *crypto.KeyRing
+	// ai-generated: keys in place of a fixed ring (panel).
+	keys  *Keys
 	group *muxconn.PinGroup
 	pair  *tunnelcore.SessionPair
 	conn  *muxconn.Conn
@@ -94,8 +95,11 @@ type Server struct {
 	// the /stats endpoint; link is the carrier state the same endpoint
 	// reports. A nil link reads as LinkConnecting, so a server that never
 	// joined never reads as one a client could pair with.
-	meter *meter
+	meter *Meter
 	link  atomic.Pointer[LinkState]
+	// onLink hears every carrier-session transition; nil for none.
+	// ai-generated (panel).
+	onLink func(LinkState)
 
 	// unsafeAllowPrivateTargets lifts the egress policy (blockedRanges) for
 	// TCP CONNECT and UDP flows alike; tests only. dialTarget dials a
@@ -138,6 +142,13 @@ type Config struct {
 	// that opens a peer's first record is pinned for that peer. Empty means
 	// the single KeyHex.
 	Keys []string
+	// KeySource, when set, is the ring in place of Keys and KeyHex: one the
+	// panel changes while the server runs. Meter, when set, is the meter the
+	// server counts into, shared with the panel's other rooms. OnLinkState
+	// hears every carrier-session transition. ai-generated (panel).
+	KeySource   *Keys
+	Meter       *Meter
+	OnLinkState func(LinkState)
 	// StatsListen, when set, serves GET /stats on this loopback address with
 	// per-key byte totals. Empty disables the listener.
 	StatsListen string
@@ -177,9 +188,13 @@ type Config struct {
 func Run(ctx context.Context, cfg Config) error {
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	ring, err := setupRing(cfg)
+	keys, err := setupKeys(cfg)
 	if err != nil {
 		return fmt.Errorf("setup key ring: %w", err)
+	}
+	meter := cfg.Meter // ai-generated: a meter shared between rooms (panel).
+	if meter == nil {
+		meter = NewMeter()
 	}
 	hook := cfg.AuthHook
 	if hook == nil {
@@ -198,13 +213,13 @@ func Run(ctx context.Context, cfg Config) error {
 		onTraffic = func(string, string, uint64, uint64) {}
 	}
 	s := &Server{
-		ring: ring, authHook: hook, onOpen: onOpen, onClose: onClose, onTraffic: onTraffic,
+		keys: keys, onLink: cfg.OnLinkState, authHook: hook, onOpen: onOpen, onClose: onClose, onTraffic: onTraffic,
 		dnsServer: cfg.DNSServer, resolver: tunnelcore.Resolver(cfg.Resolver, cfg.DNSServer),
 		socksProxyAddr: cfg.SOCKSProxyAddr, socksProxyPort: cfg.SOCKSProxyPort,
 		socksProxyUser: cfg.SOCKSProxyUser, socksProxyPass: cfg.SOCKSProxyPass,
 		liveness: cfg.Liveness, health: runtime.NewHealthTracker(cfg.OnHealth),
 		peerSessions: make(map[string]*peerSession), peerStats: make(map[string]peerStat),
-		done: make(chan struct{}), meter: newMeter(),
+		done: make(chan struct{}), meter: meter,
 		udpDisabled: cfg.UDPDisabled, maxUDPFlows: normalizeMaxUDPFlows(cfg.UDPMaxFlows),
 		oltDisabled: cfg.OLTDisabled,
 		// ai-generated: the test hook (egress hardening); a release build
@@ -218,6 +233,9 @@ func Run(ctx context.Context, cfg Config) error {
 	}()
 	if cfg.StatsListen != "" {
 		s.serveStats(runCtx, cfg.StatsListen)
+	}
+	if cfg.KeySource != nil { // ai-generated: revocation (panel).
+		s.goTracked(func() { s.watchKeys(runCtx) })
 	}
 	if err := s.bringUpLink(runCtx, cfg, cancel); err != nil {
 		return err
@@ -251,20 +269,27 @@ func (s *Server) serveStats(ctx context.Context, addr string) {
 	}()
 }
 
-// setupRing builds the candidate ring: cfg.Keys when given, else the single
-// KeyHex as a one-entry ring so a stock config behaves as before.
-func setupRing(cfg Config) (*crypto.KeyRing, error) {
+// setupKeys builds the candidate ring: cfg.KeySource when given, cfg.Keys
+// next, else the single KeyHex as a one-entry ring so a stock config behaves
+// as before.
+//
+// ai-generated: KeySource and the Keys wrapper (panel); the rest is setupRing
+// as it was.
+func setupKeys(cfg Config) (*Keys, error) {
+	if cfg.KeySource != nil {
+		return cfg.KeySource, nil
+	}
 	if len(cfg.Keys) == 0 {
 		keys, err := tunnelcore.SetupKeySet(cfg.KeyHex, crypto.Server)
 		if err != nil {
 			return nil, fmt.Errorf("single key: %w", err)
 		}
 		id, _ := crypto.KeyIDFromHex(cfg.KeyHex)
-		return crypto.SingleEntry(keys, id), nil
+		return staticKeys(crypto.SingleEntry(keys, id)), nil
 	}
 	ring, err := crypto.NewKeyRing(cfg.Keys, crypto.Server)
 	if err != nil {
 		return nil, fmt.Errorf("build key ring: %w", err)
 	}
-	return ring, nil
+	return staticKeys(ring), nil
 }

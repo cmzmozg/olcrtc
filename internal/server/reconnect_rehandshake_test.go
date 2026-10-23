@@ -48,7 +48,7 @@ func TestSwapSessionDiscardsStaleReinstall(t *testing.T) {
 	ln := &peerRoutingStub{}
 	s := &Server{
 		ln:      ln,
-		ring:    crypto.SingleEntry(keys, ""),
+		keys:    staticKeys(crypto.SingleEntry(keys, "")),
 		session: liveData,
 		health:  runtime.NewHealthTracker(nil),
 	}

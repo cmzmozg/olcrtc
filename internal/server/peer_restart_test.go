@@ -58,12 +58,12 @@ func newRelayServer(t *testing.T, link *relayLinkStub) *Server {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
-		baseCtx: ctx, ln: link, peerLn: link, ring: cryptopkg.SingleEntry(newServerTestKeys(t), ""),
+		baseCtx: ctx, ln: link, peerLn: link, keys: staticKeys(cryptopkg.SingleEntry(newServerTestKeys(t), "")),
 		authHook: defaultAuthHook, onOpen: func(string, string, map[string]any) {},
 		onClose: func(string, string) {}, health: runtime.NewHealthTracker(nil),
 		liveness:     peerTestLiveness,
 		peerSessions: make(map[string]*peerSession), peerStats: make(map[string]peerStat),
-		done: make(chan struct{}), meter: newMeter(),
+		done: make(chan struct{}), meter: NewMeter(),
 	}
 	t.Cleanup(func() {
 		cancel()

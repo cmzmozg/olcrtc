@@ -27,7 +27,7 @@ func (l *legacyControlRoutingStub) ControlCanSend() bool { return true }
 func reconnectTestServer(t *testing.T, link *peerRoutingStub) *Server {
 	t.Helper()
 	return &Server{
-		baseCtx: context.Background(), ln: link, peerLn: link, ring: crypto.SingleEntry(newServerTestKeys(t), ""),
+		baseCtx: context.Background(), ln: link, peerLn: link, keys: staticKeys(crypto.SingleEntry(newServerTestKeys(t), "")),
 		health: runtime.NewHealthTracker(nil), onClose: func(string, string) {},
 		peerSessions: make(map[string]*peerSession), peerStats: make(map[string]peerStat),
 		done: make(chan struct{}),

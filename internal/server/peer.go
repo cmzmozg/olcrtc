@@ -235,7 +235,7 @@ func (s *Server) getOrCreatePeerControlSession(peerID string) *peerSession {
 			s.sessMu.Unlock()
 			return nil
 		}
-		peer = newPeerSession(peerID, true, muxconn.NewPinGroup(s.ring))
+		peer = newPeerSession(peerID, true, muxconn.NewPinGroup(s.keys.Ring()))
 	}
 	conn := muxconn.NewPeerControlUnboundGrouped(s.ln, peer.group, peerID)
 	if conn == nil {
@@ -417,7 +417,7 @@ func (s *Server) peerSessionIn(peerID string, carried *muxconn.PinGroup) *peerSe
 		group = peer.group
 	}
 	if group == nil {
-		group = muxconn.NewPinGroup(s.ring)
+		group = muxconn.NewPinGroup(s.keys.Ring())
 	}
 	conn := muxconn.NewPeerGrouped(s.peerLn, group, peerID)
 	session, err := tunnelcore.NewSession(conn, tunnelcore.ServerRole, runtime.SmuxConfigFor(s.ln))

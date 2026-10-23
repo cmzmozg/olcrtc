@@ -9,7 +9,7 @@ import (
 )
 
 func TestMeterAttributesPerKeyAndTotals(t *testing.T) {
-	m := newMeter()
+	m := NewMeter()
 	m.bind("sess-A", "keyaaa0000000000")
 	m.bind("sess-B", "keybbb0000000000")
 
@@ -18,7 +18,7 @@ func TestMeterAttributesPerKeyAndTotals(t *testing.T) {
 	m.add("sess-B", 1, 2)
 	m.add("unbound-session", 999, 999) // no bound key → ignored
 
-	snap := m.snapshot()
+	snap := m.Snapshot()
 	if snap.Keys["keyaaa0000000000"] != (StatsDirection{Up: 110, Down: 220}) {
 		t.Fatalf("key A = %+v", snap.Keys["keyaaa0000000000"])
 	}
@@ -34,16 +34,16 @@ func TestMeterAttributesPerKeyAndTotals(t *testing.T) {
 }
 
 func TestMeterBindIgnoresEmptyKey(t *testing.T) {
-	m := newMeter()
+	m := NewMeter()
 	m.bind("sess", "") // legacy/unpaired → not metered
 	m.add("sess", 500, 500)
-	if len(m.snapshot().Keys) != 0 {
+	if len(m.Snapshot().Keys) != 0 {
 		t.Fatal("empty-key session was metered")
 	}
 }
 
 func TestStatsHandlerServesContractJSON(t *testing.T) {
-	m := newMeter()
+	m := NewMeter()
 	m.bind("s", "deadbeefdeadbeef")
 	m.add("s", 7, 9)
 
@@ -72,7 +72,7 @@ func TestStatsHandlerServesContractJSON(t *testing.T) {
 func TestStatsHandlerReportsTheLinkState(t *testing.T) {
 	for _, state := range []LinkState{LinkConnecting, LinkUp, LinkDown} {
 		t.Run(string(state), func(t *testing.T) {
-			m := newMeter()
+			m := NewMeter()
 			m.bind("s", "deadbeefdeadbeef")
 			m.add("s", 7, 9)
 

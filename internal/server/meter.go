@@ -22,17 +22,18 @@ type keyCounters struct {
 	down uint64
 }
 
-// meter accumulates per-key traffic and maps sessions to their paired key.
+// Meter accumulates per-key traffic and maps sessions to their paired key.
 // Safe for concurrent use: OnTraffic fires from many stream goroutines while
 // the stats handler reads snapshots.
-type meter struct {
+type Meter struct {
 	mu         sync.Mutex
 	perKey     map[string]*keyCounters
 	sessionKey map[string]string // sessionID -> keyID
 }
 
-func newMeter() *meter {
-	return &meter{
+// NewMeter is an empty meter. ai-generated: exported for the panel.
+func NewMeter() *Meter {
+	return &Meter{
 		perKey:     make(map[string]*keyCounters),
 		sessionKey: make(map[string]string),
 	}
@@ -42,7 +43,7 @@ func newMeter() *meter {
 // without an id, or unpaired) is ignored - such traffic stays uncounted
 // rather than polluting a bucket. A nil meter (a Server built by hand in
 // tests) meters nothing.
-func (m *meter) bind(sessionID, keyID string) {
+func (m *Meter) bind(sessionID, keyID string) {
 	if m == nil || keyID == "" || sessionID == "" {
 		return
 	}
@@ -56,7 +57,7 @@ func (m *meter) bind(sessionID, keyID string) {
 
 // add attributes a finished stream's byte counts to the session's key. A
 // session with no bound key is silently skipped.
-func (m *meter) add(sessionID string, up, down uint64) {
+func (m *Meter) add(sessionID string, up, down uint64) {
 	if m == nil {
 		return
 	}
@@ -92,8 +93,8 @@ type StatsBody struct {
 	Total StatsDirection            `json:"total"`
 }
 
-// snapshot copies the current counters for serialization.
-func (m *meter) snapshot() StatsBody {
+// Snapshot copies the current counters for serialization.
+func (m *Meter) Snapshot() StatsBody {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	resp := StatsBody{Keys: make(map[string]StatsDirection, len(m.perKey))}
@@ -110,10 +111,10 @@ func (m *meter) snapshot() StatsBody {
 // the moment the listener was bound - and must not be nil.
 //
 // ai-generated: the link parameter and the StatsBody field it fills.
-func (m *meter) statsHandler(link func() LinkState) http.Handler {
+func (m *Meter) statsHandler(link func() LinkState) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/stats", func(w http.ResponseWriter, _ *http.Request) {
-		body := m.snapshot()
+		body := m.Snapshot()
 		body.Link = link()
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(body)
