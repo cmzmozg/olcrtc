@@ -98,9 +98,7 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Run tests
-        # ai-generated: isolate wall-clock latency checks from other packages'
-        # race-instrumented workloads on the shared runner.
-        run: go test -p 1 -count=1 -race -timeout 15m -tags "${{ matrix.tags }}" -coverprofile=coverage.out ./...
+        run: go test -count=1 -race -timeout 15m -tags "${{ matrix.tags }}" -coverprofile=coverage.out ./...
 
       - name: Coverage summary
         run: go tool cover -func=coverage.out | tail -1
