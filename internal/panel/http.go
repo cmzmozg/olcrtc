@@ -26,16 +26,18 @@ const (
 // panel itself under its secret path, and a 404 for everything else.
 func (p *panel) handler() http.Handler {
 	api := http.NewServeMux()
-	api.HandleFunc("POST /api/login", p.handleLogin)
-	api.HandleFunc("POST /api/logout", p.handleLogout)
+	api.HandleFunc("POST /api/login", p.audited(auditLogin, p.handleLogin))
+	api.HandleFunc("POST /api/logout", p.audited("logout", p.auth.require(p.handleLogout)))
 	api.HandleFunc("GET /api/state", p.auth.require(p.handleState))
-	api.HandleFunc("POST /api/rooms", p.auth.require(p.handleAddRoom))
-	api.HandleFunc("PATCH /api/rooms/{id}", p.auth.require(p.handleEditRoom))
-	api.HandleFunc("DELETE /api/rooms/{id}", p.auth.require(p.handleDeleteRoom))
-	api.HandleFunc("POST /api/clients", p.auth.require(p.handleAddClient))
-	api.HandleFunc("PATCH /api/clients/{id}", p.auth.require(p.handleEditClient))
-	api.HandleFunc("DELETE /api/clients/{id}", p.auth.require(p.handleDeleteClient))
-	api.HandleFunc("GET /api/clients/{id}/links", p.auth.require(p.handleLinks))
+	api.HandleFunc("GET /api/metrics", p.auth.require(p.handleMetrics))
+	api.HandleFunc("GET /api/audit", p.auth.require(p.handleAudit))
+	api.HandleFunc("POST /api/rooms", p.audited("room-create", p.auth.require(p.handleAddRoom)))
+	api.HandleFunc("PATCH /api/rooms/{id}", p.audited("room-update", p.auth.require(p.handleEditRoom)))
+	api.HandleFunc("DELETE /api/rooms/{id}", p.audited("room-delete", p.auth.require(p.handleDeleteRoom)))
+	api.HandleFunc("POST /api/clients", p.audited("client-create", p.auth.require(p.handleAddClient)))
+	api.HandleFunc("PATCH /api/clients/{id}", p.audited("client-update", p.auth.require(p.handleEditClient)))
+	api.HandleFunc("DELETE /api/clients/{id}", p.audited("client-delete", p.auth.require(p.handleDeleteClient)))
+	api.HandleFunc("GET /api/clients/{id}/links", p.audited("client-links", p.auth.require(p.handleLinks)))
 	api.Handle("GET /", http.FileServerFS(web.Assets))
 
 	root := http.NewServeMux()
@@ -218,6 +220,7 @@ func (p *panel) handleAddRoom(w http.ResponseWriter, r *http.Request) {
 		writeStoreError(w, err)
 		return
 	}
+	r.SetPathValue("id", room.ID) // ai-generated: associate the created room with its journal entry.
 	p.change(w, r, func(d *storeData) error {
 		d.Rooms = append(d.Rooms, room)
 		return nil
@@ -315,6 +318,7 @@ func (p *panel) handleAddClient(w http.ResponseWriter, r *http.Request) {
 		ID: newID(8), Name: name, Key: newID(32), Sub: newID(32),
 		Note: strings.TrimSpace(deref(body.Note)), Created: time.Now().UTC(),
 	}
+	r.SetPathValue("id", client.ID) // ai-generated: associate the created client with its journal entry.
 	p.change(w, r, func(d *storeData) error {
 		d.Clients = append(d.Clients, client)
 		return nil

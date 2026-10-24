@@ -69,13 +69,15 @@ type Options struct {
 
 // panel is a running panel.
 type panel struct {
-	opts   Options
-	prefix string // "/" + Path + "/"
-	store  *store
-	keys   *server.Keys
-	meter  *server.Meter
-	rooms  *roomRunner
-	auth   *auth
+	opts    Options
+	prefix  string // "/" + Path + "/"
+	store   *store
+	keys    *server.Keys
+	meter   *server.Meter
+	rooms   *roomRunner
+	auth    *auth
+	audit   *auditLog
+	monitor *monitor
 }
 
 // Run serves the panel and runs its rooms until ctx ends.
@@ -97,6 +99,10 @@ func newPanel(ctx context.Context, opts Options) (*panel, error) {
 	if err != nil {
 		return nil, err
 	}
+	journal, err := loadAudit(opts.Store + ".audit.json")
+	if err != nil {
+		return nil, err
+	}
 	keys, err := server.NewKeys(nil)
 	if err != nil {
 		return nil, fmt.Errorf("panel keys: %w", err)
@@ -106,6 +112,7 @@ func newPanel(ctx context.Context, opts Options) (*panel, error) {
 		opts: opts, prefix: "/" + opts.Path + "/", store: st, keys: keys, meter: meter,
 		rooms: newRoomRunner(opts.RunRoom, keys, meter),
 		auth:  newAuth(opts.Password, "/"+opts.Path+"/", opts.Cert != ""),
+		audit: journal, monitor: &monitor{started: time.Now()},
 	}
 	if err := p.apply(ctx); err != nil {
 		p.rooms.stop()

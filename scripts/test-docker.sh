@@ -97,7 +97,10 @@ def request(endpoint, method="GET", data=None, status=200):
 request("/", status=404)
 request("/api/state", status=404)
 request(f"/{path}/api/state", status=401)
+request(f"/{path}/api/metrics", status=401)
+request(f"/{path}/api/audit", status=401)
 assert b"app.js" in request(f"/{path}/")
+assert b"renderMetrics" in request(f"/{path}/monitor.js")
 request(f"/{path}/api/login", "POST", {"password": password})
 assert all(cookie.secure for cookie in jar)
 request(f"/{path}/api/clients", "POST", {"name": "docker-test"})
@@ -107,13 +110,26 @@ store = root / "data/panel.json"
 assert store.stat().st_mode & 0o777 == 0o600
 assert store.stat().st_uid == 10001
 assert len(json.loads(store.read_text())["clients"][0]["key"]) == 64
+# // ai-generated: monitor counters and journal survive the real container installation.
+metrics = json.loads(request(f"/{path}/api/metrics"))
+assert metrics["clients"] == 1 and metrics["clients_enabled"] == 1
+assert metrics["host"]["mem_total"] > 0 and metrics["host"]["disk_total"] > 0
+journal = json.loads(request(f"/{path}/api/audit"))["entries"]
+assert [entry["action"] for entry in journal] == ["client-create", "login"]
+assert journal[0]["target"] == state["clients"][0]["id"]
+audit = root / "data/panel.json.audit.json"
+assert audit.stat().st_mode & 0o777 == 0o600 and audit.stat().st_uid == 10001
+assert password not in audit.read_text()
+assert json.loads(store.read_text())["clients"][0]["key"] not in audit.read_text()
 PY
 
 config_hash=$(sha256sum "$INSTALL/data/server.yaml")
 store_hash=$(sha256sum "$INSTALL/data/panel.json")
+audit_hash=$(sha256sum "$INSTALL/data/panel.json.audit.json")
 bash "$ROOT/scripts/install-docker.sh" --yes --action update --skip-pull --image "$IMAGE" --dir "$INSTALL" >"$STAGE/update.log" 2>&1
 [[ $(sha256sum "$INSTALL/data/server.yaml") == "$config_hash" ]]
 [[ $(sha256sum "$INSTALL/data/panel.json") == "$store_hash" ]]
+[[ $(sha256sum "$INSTALL/data/panel.json.audit.json") == "$audit_hash" ]]
 
 # // ai-generated: exercise failed update rollback with an image that cannot serve HTTPS.
 docker image inspect "$IMAGE" --format '{{.Config.User}}' | grep -Fx 10001:10001

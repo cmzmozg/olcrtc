@@ -8,6 +8,7 @@
 <title>olcrtc panel</title>
 <link rel="stylesheet" href="style.css">
 <script src="app.js" defer></script>
+<script src="monitor.js" defer></script>
 </head>
 <body>
 
@@ -27,7 +28,13 @@
     <button class="btn btn-ghost" id="logout">ВЫЙТИ</button>
   </header>
   <div class="error" id="app-error"></div>
+  <nav class="tabs" aria-label="Разделы панели">
+    <button class="btn btn-primary" data-view="manage" aria-pressed="true">УПРАВЛЕНИЕ</button>
+    <button class="btn" data-view="monitor" aria-pressed="false">МОНИТОРИНГ</button>
+    <button class="btn" data-view="audit" aria-pressed="false">ЖУРНАЛ</button>
+  </nav>
 
+  <div id="view-manage">
   <section class="card">
     <div class="micro">КОМНАТЫ</div>
     <form class="row" id="room-form">
@@ -55,7 +62,7 @@
       <thead><tr><th>ИМЯ</th><th>ТРАФИК ↓ / ↑</th><th>СОЗДАН</th><th>ЗАМЕТКА</th><th></th></tr></thead>
       <tbody id="clients"></tbody>
     </table>
-    <div class="hint">Трафик считается с запуска сервера.</div>
+    <div class="hint">Трафик завершённых потоков с запуска сервера.</div>
   </section>
 
   <section class="card hidden" id="links">
@@ -65,6 +72,30 @@
     <div id="links-list"></div>
     <div class="hint">Подписка отдаёт ссылки на все включённые комнаты: новая комната дойдёт до клиента при следующем обновлении подписки. Не публикуйте ссылки: в каждой ключ клиента.</div>
     <button class="btn btn-ghost" id="links-close">ЗАКРЫТЬ</button>
+  </section>
+  </div>
+
+  <section id="view-monitor" class="hidden" aria-label="Мониторинг">
+    <div class="row"><span class="hint" id="metrics-at" role="status">Загрузка показателей...</span></div>
+    <div id="metrics-cards" class="metrics-grid"></div>
+    <section class="card">
+      <div class="micro">CPU И ПАМЯТЬ ХОСТА, %</div>
+      <canvas id="metrics-chart" width="960" height="200" role="img" aria-label="График CPU и занятой памяти за последние 5 минут"></canvas>
+      <div class="hint"><span class="legend-cpu">CPU</span> / <span class="legend-mem">RAM</span>. Обновление раз в 5 секунд, история пока открыта вкладка. Показатели хоста берутся из Linux /proc; диск - файловая система данных панели.</div>
+    </section>
+    <div class="hint">Трафик учитывает завершённые потоки с запуска процесса. Включённые клиенты - число разрешённых ключей, а не активных подключений.</div>
+  </section>
+
+  <section id="view-audit" class="card hidden" aria-label="Журнал действий">
+    <div class="micro">ДЕЙСТВИЯ АДМИНИСТРАТОРА</div>
+    <div class="row">
+      <input class="field wide" id="audit-filter" type="search" placeholder="поиск по действию, IP или ID" aria-label="Поиск в журнале">
+      <button class="btn" id="audit-refresh">ОБНОВИТЬ</button>
+      <button class="btn" id="audit-export">СКАЧАТЬ JSON</button>
+    </div>
+    <div class="error" id="audit-error" role="status"></div>
+    <table class="list"><thead><tr><th>ВРЕМЯ</th><th>IP</th><th>ДЕЙСТВИЕ</th><th>ОБЪЕКТ</th><th>РЕЗУЛЬТАТ</th></tr></thead><tbody id="audit-entries"></tbody></table>
+    <div class="hint">Последние 500 событий, новые сверху. Журнал сохраняется между перезапусками. Пароли, ключи и адреса подписок в него не записываются.</div>
   </section>
 </div>
 

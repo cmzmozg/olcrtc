@@ -6,7 +6,9 @@ package web
 
 import "embed"
 
-// Assets is the panel's page: index.html, app.js and style.css.
+// Assets is the panel's page, scripts and stylesheet.
 //
-//go:embed index.html app.js style.css
+// ai-generated: embed the monitoring and journal script alongside the existing assets.
+//
+//go:embed index.html app.js monitor.js style.css
 var Assets embed.FS

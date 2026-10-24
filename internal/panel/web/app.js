@@ -63,6 +63,9 @@ async function act(fn) {
 }
 
 function showLogin() {
+  state = null;
+  hideLinks();
+  resetMonitoring();
   $('app').classList.add('hidden');
   $('login-screen').classList.remove('hidden');
   $('login-pass').focus();
@@ -221,5 +224,5 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   $('links-close').addEventListener('click', hideLinks);
   api('GET', 'state').then(render).catch(() => {});
-  setInterval(() => { if (state && !document.hidden) api('GET', 'state').then(render).catch(() => {}); }, 5000);
+  setInterval(() => { if (state && !document.hidden) refreshView().catch(fail); }, 5000);
 });

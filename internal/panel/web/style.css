@@ -75,6 +75,17 @@ body {
 
 .link-row { margin-top: 8px; }
 
+/* ai-generated: monitoring cards, navigation and journal result colors. */
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 16px; }
+.metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.metric { margin: 0; min-width: 0; }
+.metric-value { font-size: 19px; overflow-wrap: anywhere; }
+#metrics-chart { width: 100%; height: 200px; display: block; }
+#view-monitor > .card { margin-top: 14px; }
+.legend-cpu { color: var(--signal); }
+.legend-mem, .audit-ok { color: var(--good); }
+.audit-failed { color: var(--bad); }
+
 @media (max-width: 700px) {
   .list thead { display: none; }
   .list tr { display: block; border-top: 1px solid var(--hairline); padding: 6px 0; }
