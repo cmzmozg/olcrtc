@@ -1,0 +1,21 @@
+{
+  "server_A_sha256": "629ddebde074356e9bb02c8b9b582c0d04daa6ec1193641275cd7cec348bb787",
+  "server_B_sha256": "c31d1a2902b06b9a99d7856a465cef7a0d01aee83fb0fd6616443ced019f831f",
+  "server_B_commit": "2c9ccd4dde0ee2fbe6f4548e4b13a879c91404ae",
+  "server_A_commit": null,
+  "client_binary": "same as server_A",
+  "client_profile_sha256": "03f5debd9471246951d009f8d021a0732669915abf28a942f5465cb72d3c3792",
+  "mobile_tested": false,
+  "protocol": "vkcalls/vp8channel",
+  "fps": 30,
+  "batch": 64,
+  "source_reference_ghostlane_commit": "f4c6a873e8dd9c6d7e2d0462758a47cc722147d6",
+  "source_reference_client_engine_pin": "v0.0.0-20261019022749-b6cb4c417d17",
+  "telemost_decommission": {
+    "telemost": "disabled and removed",
+    "vk_pid_unchanged": "629960",
+    "shared_binary_retained": true,
+    "watchdog_instances": 1,
+    "backup": "/var/backups/olcrtc-telemost-20261024"
+  }
+}

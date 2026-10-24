@@ -1,0 +1,694 @@
+[
+  {
+    "label": "vk-lab-A1",
+    "phase": "ready",
+    "attempts": 1,
+    "success": 1,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.778693,
+      "min": 0.778693,
+      "max": 0.778693
+    },
+    "total_s": {
+      "median": 0.778794,
+      "min": 0.778794,
+      "max": 0.778794
+    },
+    "mbps": {
+      "median": 0.16830124525869486,
+      "min": 0.16830124525869486,
+      "max": 0.16830124525869486
+    }
+  },
+  {
+    "label": "vk-lab-A1",
+    "phase": "idle-small",
+    "attempts": 12,
+    "success": 12,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.6913925,
+      "min": 0.652885,
+      "max": 0.735804
+    },
+    "total_s": {
+      "median": 0.6914685,
+      "min": 0.652953,
+      "max": 0.735901
+    },
+    "mbps": {
+      "median": 0.18955599960664743,
+      "min": 0.17811091437571086,
+      "max": 0.20073726592878813
+    }
+  },
+  {
+    "label": "vk-lab-A1",
+    "phase": "download",
+    "attempts": 3,
+    "success": 3,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.728956,
+      "min": 0.693531,
+      "max": 0.734818
+    },
+    "total_s": {
+      "median": 4.393167,
+      "min": 3.3982,
+      "max": 4.889549
+    },
+    "mbps": {
+      "median": 7.637868535386885,
+      "min": 6.862479954695209,
+      "max": 9.87417809428521
+    }
+  },
+  {
+    "label": "vk-lab-A1",
+    "phase": "upload",
+    "attempts": 2,
+    "success": 2,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.543771,
+      "min": 1.267633,
+      "max": 1.819909
+    },
+    "total_s": {
+      "median": 1.543799,
+      "min": 1.267662,
+      "max": 1.819936
+    },
+    "mbps": {
+      "median": 5.613336375464771,
+      "min": 4.6092873595555,
+      "max": 6.617385391374041
+    }
+  },
+  {
+    "label": "vk-lab-A1",
+    "phase": "load-bulk",
+    "attempts": 16,
+    "success": 16,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 2.2335599999999998,
+      "min": 0.688038,
+      "max": 7.789854
+    },
+    "total_s": {
+      "median": 7.6096900000000005,
+      "min": 4.886318,
+      "max": 8.47096
+    },
+    "mbps": {
+      "median": 4.40949858799278,
+      "min": 3.961113262251268,
+      "max": 6.8670176603323805
+    },
+    "aggregate_mbps": 8.775754593891412,
+    "aggregate_span_s": 61.1766095161438
+  },
+  {
+    "label": "vk-lab-A1",
+    "phase": "loaded-small",
+    "attempts": 11,
+    "success": 11,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 6.995768,
+      "min": 0.782817,
+      "max": 7.751023
+    },
+    "total_s": {
+      "median": 6.995829,
+      "min": 0.782915,
+      "max": 7.751151
+    },
+    "mbps": {
+      "median": 0.01873573525024697,
+      "min": 0.016910004720589237,
+      "max": 0.16741536437544305
+    }
+  },
+  {
+    "label": "vk-lab-A1",
+    "phase": "after-load-small",
+    "attempts": 1,
+    "success": 1,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.695041,
+      "min": 0.695041,
+      "max": 0.695041
+    },
+    "total_s": {
+      "median": 0.695139,
+      "min": 0.695139,
+      "max": 0.695139
+    },
+    "mbps": {
+      "median": 0.1885550947364484,
+      "min": 0.1885550947364484,
+      "max": 0.1885550947364484
+    }
+  },
+  {
+    "label": "vk-lab-B",
+    "phase": "ready",
+    "attempts": 1,
+    "success": 1,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.703971,
+      "min": 0.703971,
+      "max": 0.703971
+    },
+    "total_s": {
+      "median": 0.704039,
+      "min": 0.704039,
+      "max": 0.704039
+    },
+    "mbps": {
+      "median": 0.18617150470357466,
+      "min": 0.18617150470357466,
+      "max": 0.18617150470357466
+    }
+  },
+  {
+    "label": "vk-lab-B",
+    "phase": "idle-small",
+    "attempts": 12,
+    "success": 12,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.691936,
+      "min": 0.623529,
+      "max": 0.729161
+    },
+    "total_s": {
+      "median": 0.692033,
+      "min": 0.623595,
+      "max": 0.729225
+    },
+    "mbps": {
+      "median": 0.18940171232984743,
+      "min": 0.1797415063937742,
+      "max": 0.21018770195399256
+    }
+  },
+  {
+    "label": "vk-lab-B",
+    "phase": "download",
+    "attempts": 3,
+    "success": 3,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.657229,
+      "min": 0.654227,
+      "max": 0.733302
+    },
+    "total_s": {
+      "median": 2.993084,
+      "min": 2.990739,
+      "max": 3.069624
+    },
+    "mbps": {
+      "median": 11.210654963241927,
+      "min": 10.931121205724219,
+      "max": 11.219445093670828
+    }
+  },
+  {
+    "label": "vk-lab-B",
+    "phase": "upload",
+    "attempts": 2,
+    "success": 2,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.448681,
+      "min": 1.268179,
+      "max": 1.629183
+    },
+    "total_s": {
+      "median": 1.448698,
+      "min": 1.268196,
+      "max": 1.6292
+    },
+    "mbps": {
+      "median": 5.881755677410267,
+      "min": 5.1489123496194455,
+      "max": 6.614599005201089
+    }
+  },
+  {
+    "label": "vk-lab-B",
+    "phase": "loaded-small",
+    "attempts": 12,
+    "success": 12,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.4231565000000002,
+      "min": 0.953424,
+      "max": 1.499523
+    },
+    "total_s": {
+      "median": 1.4232215,
+      "min": 1.231287,
+      "max": 1.73143
+    },
+    "mbps": {
+      "median": 0.09209834693075919,
+      "min": 0.07570158770496063,
+      "max": 0.10645121730352063
+    }
+  },
+  {
+    "label": "vk-lab-B",
+    "phase": "load-bulk",
+    "attempts": 8,
+    "success": 8,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.040552,
+      "min": 0.6747,
+      "max": 1.796855
+    },
+    "total_s": {
+      "median": 5.09631,
+      "min": 4.971625,
+      "max": 5.592322
+    },
+    "mbps": {
+      "median": 6.584941339362997,
+      "min": 6.000089408299451,
+      "max": 6.749188042139139
+    },
+    "aggregate_mbps": 12.375872422327808,
+    "aggregate_span_s": 21.69022488594055
+  },
+  {
+    "label": "vk-lab-A2",
+    "phase": "ready",
+    "attempts": 1,
+    "success": 1,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.716738,
+      "min": 0.716738,
+      "max": 0.716738
+    },
+    "total_s": {
+      "median": 0.716804,
+      "min": 0.716804,
+      "max": 0.716804
+    },
+    "mbps": {
+      "median": 0.1828561224546738,
+      "min": 0.1828561224546738,
+      "max": 0.1828561224546738
+    }
+  },
+  {
+    "label": "vk-lab-A2",
+    "phase": "idle-small",
+    "attempts": 12,
+    "success": 12,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.710677,
+      "min": 0.690947,
+      "max": 0.75562
+    },
+    "total_s": {
+      "median": 0.7107749999999999,
+      "min": 0.691009,
+      "max": 0.755686
+    },
+    "mbps": {
+      "median": 0.1844072016737012,
+      "min": 0.17344770182324404,
+      "max": 0.18968204466222582
+    }
+  },
+  {
+    "label": "vk-lab-A2",
+    "phase": "download",
+    "attempts": 3,
+    "success": 3,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.714805,
+      "min": 0.709772,
+      "max": 0.773814
+    },
+    "total_s": {
+      "median": 3.130111,
+      "min": 3.1295,
+      "max": 4.836934
+    },
+    "mbps": {
+      "median": 10.719885652617432,
+      "min": 6.937128354449326,
+      "max": 10.721978590829204
+    }
+  },
+  {
+    "label": "vk-lab-A2",
+    "phase": "upload",
+    "attempts": 2,
+    "success": 2,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.4746265,
+      "min": 1.423202,
+      "max": 1.526051
+    },
+    "total_s": {
+      "median": 1.4746485,
+      "min": 1.423229,
+      "max": 1.526068
+    },
+    "mbps": {
+      "median": 5.69547229301729,
+      "min": 5.49687694126343,
+      "max": 5.89406764477115
+    }
+  },
+  {
+    "label": "vk-lab-A2",
+    "phase": "load-bulk",
+    "attempts": 16,
+    "success": 16,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.9494739999999999,
+      "min": 0.69778,
+      "max": 5.931458
+    },
+    "total_s": {
+      "median": 7.8098185,
+      "min": 6.326307,
+      "max": 8.491017
+    },
+    "mbps": {
+      "median": 4.297439278166767,
+      "min": 3.9517565445929503,
+      "max": 5.303952527122064
+    },
+    "aggregate_mbps": 8.577469246344812,
+    "aggregate_span_s": 62.59082913398743
+  },
+  {
+    "label": "vk-lab-A2",
+    "phase": "loaded-small",
+    "attempts": 12,
+    "success": 12,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 6.754605,
+      "min": 0.71111,
+      "max": 8.192279
+    },
+    "total_s": {
+      "median": 6.754664999999999,
+      "min": 0.711193,
+      "max": 8.192463
+    },
+    "mbps": {
+      "median": 0.019415393604373145,
+      "min": 0.015999095754231665,
+      "max": 0.18429877684397908
+    }
+  },
+  {
+    "label": "vk-lab-B2",
+    "phase": "ready",
+    "attempts": 1,
+    "success": 1,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.642772,
+      "min": 0.642772,
+      "max": 0.642772
+    },
+    "total_s": {
+      "median": 0.642842,
+      "min": 0.642842,
+      "max": 0.642842
+    },
+    "mbps": {
+      "median": 0.20389458062789925,
+      "min": 0.20389458062789925,
+      "max": 0.20389458062789925
+    }
+  },
+  {
+    "label": "vk-lab-B2",
+    "phase": "idle-small",
+    "attempts": 12,
+    "success": 12,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.691036,
+      "min": 0.653028,
+      "max": 0.733273
+    },
+    "total_s": {
+      "median": 0.691136,
+      "min": 0.6531,
+      "max": 0.733345
+    },
+    "mbps": {
+      "median": 0.18964718998695013,
+      "min": 0.17873170199565008,
+      "max": 0.20069208390751797
+    }
+  },
+  {
+    "label": "vk-lab-B2",
+    "phase": "download",
+    "attempts": 3,
+    "success": 3,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.711182,
+      "min": 0.657215,
+      "max": 0.754961
+    },
+    "total_s": {
+      "median": 3.069475,
+      "min": 2.993036,
+      "max": 3.073025
+    },
+    "mbps": {
+      "median": 10.931651829710292,
+      "min": 10.919023437817787,
+      "max": 11.210834751068814
+    }
+  },
+  {
+    "label": "vk-lab-B2",
+    "phase": "upload",
+    "attempts": 2,
+    "success": 2,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.4898715,
+      "min": 1.261667,
+      "max": 1.718076
+    },
+    "total_s": {
+      "median": 1.489888,
+      "min": 1.261683,
+      "max": 1.718093
+    },
+    "mbps": {
+      "median": 5.765627795145495,
+      "min": 4.882511016574772,
+      "max": 6.648744573716218
+    }
+  },
+  {
+    "label": "vk-lab-B2",
+    "phase": "steady-small",
+    "attempts": 35,
+    "success": 35,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.430552,
+      "min": 0.951817,
+      "max": 2.952906
+    },
+    "total_s": {
+      "median": 1.431201,
+      "min": 0.95188,
+      "max": 2.952961
+    },
+    "mbps": {
+      "median": 0.09158182533410751,
+      "min": 0.044386634296897244,
+      "max": 0.13769802916333992
+    }
+  },
+  {
+    "label": "vk-lab-B2",
+    "phase": "steady-bulk",
+    "attempts": 23,
+    "success": 23,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.311489,
+      "min": 0.687138,
+      "max": 3.215828
+    },
+    "total_s": {
+      "median": 5.171008,
+      "min": 3.849627,
+      "max": 7.996293
+    },
+    "mbps": {
+      "median": 6.488953797789523,
+      "min": 4.196248436619319,
+      "max": 8.716281343621082
+    },
+    "aggregate_mbps": 12.311833170137366,
+    "aggregate_span_s": 62.68375515937805
+  },
+  {
+    "label": "vk-lab-A3",
+    "phase": "ready",
+    "attempts": 1,
+    "success": 1,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.758608,
+      "min": 0.758608,
+      "max": 0.758608
+    },
+    "total_s": {
+      "median": 0.758702,
+      "min": 0.758702,
+      "max": 0.758702
+    },
+    "mbps": {
+      "median": 0.172758210733595,
+      "min": 0.172758210733595,
+      "max": 0.172758210733595
+    }
+  },
+  {
+    "label": "vk-lab-A3",
+    "phase": "idle-small",
+    "attempts": 12,
+    "success": 12,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.7807325,
+      "min": 0.730311,
+      "max": 0.793231
+    },
+    "total_s": {
+      "median": 0.7808165,
+      "min": 0.730419,
+      "max": 0.793319
+    },
+    "mbps": {
+      "median": 0.1678916312130418,
+      "min": 0.16521979178615412,
+      "max": 0.17944768687561521
+    }
+  },
+  {
+    "label": "vk-lab-A3",
+    "phase": "download",
+    "attempts": 3,
+    "success": 3,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.795607,
+      "min": 0.779786,
+      "max": 1.25374
+    },
+    "total_s": {
+      "median": 4.271433,
+      "min": 4.132903,
+      "max": 4.519687
+    },
+    "mbps": {
+      "median": 7.855544497596006,
+      "min": 7.424061002454373,
+      "max": 8.118853019294187
+    }
+  },
+  {
+    "label": "vk-lab-A3",
+    "phase": "upload",
+    "attempts": 2,
+    "success": 2,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.4411040000000002,
+      "min": 1.266515,
+      "max": 1.615693
+    },
+    "total_s": {
+      "median": 1.4411205,
+      "min": 1.266532,
+      "max": 1.615709
+    },
+    "mbps": {
+      "median": 5.907597324454834,
+      "min": 5.191905225507811,
+      "max": 6.6232894234018564
+    }
+  },
+  {
+    "label": "vk-lab-A3",
+    "phase": "steady-bulk",
+    "attempts": 16,
+    "success": 16,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.866827,
+      "min": 0.72853,
+      "max": 6.231833
+    },
+    "total_s": {
+      "median": 7.508430499999999,
+      "min": 7.106522,
+      "max": 8.178335
+    },
+    "mbps": {
+      "median": 4.468917403606195,
+      "min": 4.102843916273911,
+      "max": 4.721639080270209
+    },
+    "aggregate_mbps": 8.861376130133966,
+    "aggregate_span_s": 60.585500955581665
+  },
+  {
+    "label": "vk-lab-A3",
+    "phase": "steady-small",
+    "attempts": 9,
+    "success": 9,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 6.871836,
+      "min": 1.382059,
+      "max": 7.492772
+    },
+    "total_s": {
+      "median": 6.871936,
+      "min": 1.38212,
+      "max": 7.492908
+    },
+    "mbps": {
+      "median": 0.01907351872892879,
+      "min": 0.017492807865784554,
+      "max": 0.09483402309495557
+    }
+  }
+]

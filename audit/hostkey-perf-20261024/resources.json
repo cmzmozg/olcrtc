@@ -1,0 +1,162 @@
+{
+  "vk-lab-A1": {
+    "unit": {
+      "MainPID": "684771",
+      "NRestarts": "0",
+      "MemoryCurrent": "49422336",
+      "MemoryPeak": "53661696",
+      "CPUUsageNSec": "22434022000",
+      "CPUQuotaPerSecUSec": "1.500000s",
+      "MemoryMax": "268435456",
+      "User": "olcrtc-tm",
+      "ActiveState": "active"
+    },
+    "cgroup_counters": {
+      "usage_usec": 22478923,
+      "user_usec": 11529108,
+      "system_usec": 10949815,
+      "nice_usec": 0,
+      "core_sched.force_idle_usec": 0,
+      "nr_periods": 991,
+      "nr_throttled": 0,
+      "throttled_usec": 0,
+      "nr_bursts": 0,
+      "burst_usec": 0,
+      "low": 0,
+      "high": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_kill": 0,
+      "oom_group_kill": 0,
+      "sock_throttled": 0
+    }
+  },
+  "vk-lab-B": {
+    "unit": {
+      "MainPID": "686231",
+      "NRestarts": "0",
+      "MemoryCurrent": "43352064",
+      "MemoryPeak": "47001600",
+      "CPUUsageNSec": "10840861000",
+      "CPUQuotaPerSecUSec": "1.500000s",
+      "MemoryMax": "268435456",
+      "User": "olcrtc-tm",
+      "ActiveState": "active"
+    },
+    "cgroup_counters": {
+      "usage_usec": 10902905,
+      "user_usec": 4939242,
+      "system_usec": 5963663,
+      "nice_usec": 0,
+      "core_sched.force_idle_usec": 0,
+      "nr_periods": 575,
+      "nr_throttled": 0,
+      "throttled_usec": 0,
+      "nr_bursts": 0,
+      "burst_usec": 0,
+      "low": 0,
+      "high": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_kill": 0,
+      "oom_group_kill": 0,
+      "sock_throttled": 0
+    }
+  },
+  "vk-lab-A2": {
+    "unit": {
+      "MainPID": "687087",
+      "NRestarts": "0",
+      "MemoryCurrent": "48816128",
+      "MemoryPeak": "54530048",
+      "CPUUsageNSec": "22371571000",
+      "CPUQuotaPerSecUSec": "1.500000s",
+      "MemoryMax": "268435456",
+      "User": "olcrtc-tm",
+      "ActiveState": "active"
+    },
+    "cgroup_counters": {
+      "usage_usec": 22430343,
+      "user_usec": 11449628,
+      "system_usec": 10980714,
+      "nice_usec": 0,
+      "core_sched.force_idle_usec": 0,
+      "nr_periods": 987,
+      "nr_throttled": 0,
+      "throttled_usec": 0,
+      "nr_bursts": 0,
+      "burst_usec": 0,
+      "low": 0,
+      "high": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_kill": 0,
+      "oom_group_kill": 0,
+      "sock_throttled": 0
+    }
+  },
+  "vk-lab-B2": {
+    "unit": {
+      "MainPID": "688538",
+      "NRestarts": "0",
+      "MemoryCurrent": "31502336",
+      "MemoryPeak": "37179392",
+      "CPUUsageNSec": "22669740000",
+      "CPUQuotaPerSecUSec": "1.500000s",
+      "MemoryMax": "268435456",
+      "User": "olcrtc-tm",
+      "ActiveState": "active"
+    },
+    "cgroup_counters": {
+      "usage_usec": 22719148,
+      "user_usec": 10302919,
+      "system_usec": 12416229,
+      "nice_usec": 0,
+      "core_sched.force_idle_usec": 0,
+      "nr_periods": 965,
+      "nr_throttled": 0,
+      "throttled_usec": 0,
+      "nr_bursts": 0,
+      "burst_usec": 0,
+      "low": 0,
+      "high": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_kill": 0,
+      "oom_group_kill": 0,
+      "sock_throttled": 0
+    }
+  },
+  "vk-lab-A3": {
+    "unit": {
+      "MainPID": "689758",
+      "NRestarts": "0",
+      "MemoryCurrent": "51269632",
+      "MemoryPeak": "55545856",
+      "CPUUsageNSec": "22790231000",
+      "CPUQuotaPerSecUSec": "1.500000s",
+      "MemoryMax": "268435456",
+      "User": "olcrtc-tm",
+      "ActiveState": "active"
+    },
+    "cgroup_counters": {
+      "usage_usec": 22835532,
+      "user_usec": 11526899,
+      "system_usec": 11308633,
+      "nice_usec": 0,
+      "core_sched.force_idle_usec": 0,
+      "nr_periods": 996,
+      "nr_throttled": 0,
+      "throttled_usec": 0,
+      "nr_bursts": 0,
+      "burst_usec": 0,
+      "low": 0,
+      "high": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_kill": 0,
+      "oom_group_kill": 0,
+      "sock_throttled": 0
+    }
+  }
+}

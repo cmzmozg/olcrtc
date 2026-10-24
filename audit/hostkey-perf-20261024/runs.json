@@ -1,0 +1,60 @@
+[
+  {
+    "event": "start",
+    "phase": "A1",
+    "utc": "2026-10-24T02:12:34Z"
+  },
+  {
+    "event": "end",
+    "phase": "A1",
+    "exit": 0
+  },
+  {
+    "event": "start",
+    "phase": "B",
+    "utc": "2026-10-24T02:14:21Z"
+  },
+  {
+    "event": "end",
+    "phase": "B",
+    "exit": 0
+  },
+  {
+    "event": "start",
+    "phase": "A2",
+    "utc": "2026-10-24T02:15:26Z"
+  },
+  {
+    "event": "end",
+    "phase": "A2",
+    "exit": 0
+  },
+  {
+    "event": "complete",
+    "client_sha256": "629ddebde074356e9bb02c8b9b582c0d04daa6ec1193641275cd7cec348bb787"
+  },
+  {
+    "event": "start",
+    "phase": "B2",
+    "utc": "2026-10-24T02:17:14Z"
+  },
+  {
+    "event": "end",
+    "phase": "B2",
+    "exit": 0
+  },
+  {
+    "event": "start",
+    "phase": "A3",
+    "utc": "2026-10-24T02:18:58Z"
+  },
+  {
+    "event": "end",
+    "phase": "A3",
+    "exit": 0
+  },
+  {
+    "event": "complete",
+    "client_sha256": "629ddebde074356e9bb02c8b9b582c0d04daa6ec1193641275cd7cec348bb787"
+  }
+]
