@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -306,6 +307,15 @@ func upload(t *testing.T, c *Conn, sent *atomic.Int64) {
 //
 // ai-generated: whole function.
 func TestFramedUpload(t *testing.T) {
+	// ai-generated: run the in-memory carrier on virtual time so runner load
+	// cannot add scheduling delays to its frame-sized latency bound.
+	synctest.Test(t, testFramedUpload)
+}
+
+// testFramedUpload checks framed upload latency and goodput inside one bubble.
+//
+// ai-generated: extracted the existing simulation without changing its bounds.
+func testFramedUpload(t *testing.T) {
 	frame := time.Second / 30
 	ul := linkConfig{delay: 40 * time.Millisecond, tick: frame, rate: 625e3, queue: 180 << 10}
 	dl := linkConfig{delay: 40 * time.Millisecond, tick: frame, rate: 5e6, queue: 4 << 20}
@@ -313,12 +323,15 @@ func TestFramedUpload(t *testing.T) {
 		cfg.Tick, cfg.MaxPacket, cfg.BurstBytes = time.Second/60, 1090, 60<<10
 	})
 	go bulkServer(p.srv)
-	idle := pings(t, p.cli, 10, 50*time.Millisecond)
+	// ai-generated: equal probe gaps avoid measuring different phases of
+	// the carrier's frame clock in the idle and loaded samples.
+	gap := 100 * time.Millisecond
+	idle := pings(t, p.cli, 10, gap)
 	var sent atomic.Int64
 	upload(t, p.cli, &sent)
 	time.Sleep(2 * time.Second)
 	start, before := time.Now(), sent.Load()
-	rtts := pings(t, p.cli, 25, 100*time.Millisecond)
+	rtts := pings(t, p.cli, 25, gap)
 	rate := float64(sent.Load()-before) / time.Since(start).Seconds()
 	_, drops := p.up.counts()
 	t.Logf("idle p50 %v; under upload p50 %v p90 %v; upload %.2f Mbit/s; uplink drops %d; client %+v",
