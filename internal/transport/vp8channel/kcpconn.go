@@ -124,14 +124,10 @@ type kcpConn struct {
 	sentAt  map[uint32]int64
 	pathRTT int64
 	pathVar int64
-	// firstAt is when a push that went out more than once first went out.
-	// Its acknowledgement is timed from there: that can only read long,
-	// while timing it from the resend read short, and the pushes whose
-	// acknowledgement comes late are exactly the ones resent. Sampled from
-	// the resend or not at all, pathRTT sat at 134-137 ms with no spread
-	// under load against KCP's 200-360 ms, and the resends it let out were
-	// a fifth of what the far end received.
-	firstAt map[uint32]int64
+	// ai-generated: resent excludes ambiguous acknowledgements from RTT samples.
+	// Timing a lost push from its first send includes retransmission delays,
+	// which makes a lossy path look congested even when its queue is empty.
+	resent map[uint32]struct{}
 	// ackedSent is the latest send among the acknowledged pushes: a push
 	// sent before it and still unacknowledged was lost, and its resend goes
 	// out at once.
@@ -693,28 +689,26 @@ func (c *kcpConn) markSent(sns []uint32) {
 	defer c.queuedMu.Unlock()
 	if c.sentAt == nil {
 		c.sentAt = make(map[uint32]int64)
-		c.firstAt = make(map[uint32]int64)
+		c.resent = make(map[uint32]struct{})
 	}
 	if len(c.sentAt) >= sentAtMax {
 		for sn, at := range c.sentAt {
 			if now-at >= int64(sentHold) {
 				delete(c.sentAt, sn)
-				delete(c.firstAt, sn)
+				delete(c.resent, sn)
 			}
 		}
 	}
 	for _, sn := range sns {
-		if at, again := c.sentAt[sn]; again {
-			if _, kept := c.firstAt[sn]; !kept {
-				c.firstAt[sn] = at
-			}
+		if _, again := c.sentAt[sn]; again {
+			c.resent[sn] = struct{}{}
 		}
 		c.sentAt[sn] = now
 	}
 }
 
-// noteAcks takes a round trip sample from each acknowledgement in body whose
-// push this conn sent. ai-generated: post-send resend veto.
+// noteAcks counts acknowledgements and samples RTT only for pushes sent once.
+// ai-generated: exclude retransmissions from RTT measurements (Karn's algorithm).
 func (c *kcpConn) noteAcks(body []byte) {
 	now := monoNow()
 	c.queuedMu.Lock()
@@ -734,9 +728,8 @@ func (c *kcpConn) noteAcks(body []byte) {
 			if at, ok := c.sentAt[sn]; ok {
 				delete(c.sentAt, sn)
 				c.acked.Add(1)
-				if first, again := c.firstAt[sn]; again {
-					delete(c.firstAt, sn)
-					c.sampleRTT(now - first)
+				if _, again := c.resent[sn]; again {
+					delete(c.resent, sn)
 				} else {
 					c.ackedSent = max(c.ackedSent, at)
 					c.sampleRTT(now - at)

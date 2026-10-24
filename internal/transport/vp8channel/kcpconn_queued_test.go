@@ -158,16 +158,26 @@ func TestParkedResendIsDroppedWhenItsPushIsAcknowledged(t *testing.T) {
 	}
 }
 
-// ai-generated: a resent push's acknowledgement is timed from its first send.
-func TestAResentPushIsTimedFromItsFirstSend(t *testing.T) {
-	c := &kcpConn{}
-	c.markSent([]uint32{30})
-	time.Sleep(20 * time.Millisecond)
-	c.markSent([]uint32{30}) // the resend went out too
-	c.noteAcks(ackSegment(30))
-	if c.pathRTT < int64(20*time.Millisecond) || c.ackedSent != 0 || len(c.firstAt) != 0 {
-		t.Fatalf("pathRTT=%s ackedSent=%d firstAt=%d, want the sample from the first send and no loss evidence",
-			time.Duration(c.pathRTT), c.ackedSent, len(c.firstAt))
+// ai-generated: retransmission delays must not inflate RTT or imply a lost later send.
+func TestResentPushDoesNotChangePathRTT(t *testing.T) {
+	for _, initial := range []time.Duration{0, 100 * time.Millisecond} {
+		c := &kcpConn{pathRTT: int64(initial), pathVar: int64(initial / 4)}
+		c.markSent([]uint32{30})
+		c.sentAt[30] = monoNow() - int64(10*time.Second)
+		c.markSent([]uint32{30})
+		c.noteAcks(ackSegment(30))
+		if c.pathRTT != int64(initial) || c.pathVar != int64(initial/4) || c.ackedSent != 0 {
+			t.Fatalf("initial=%s: RTT=%s spread=%s ackedSent=%d after a resent push",
+				initial, time.Duration(c.pathRTT), time.Duration(c.pathVar), c.ackedSent)
+		}
+		if c.acked.Load() != 1 || len(c.resent) != 0 || len(c.sentAt) != 0 {
+			t.Fatal("the ambiguous acknowledgement did not retire its push")
+		}
+		c.markSent([]uint32{31})
+		c.noteAcks(ackSegment(31))
+		if c.pathRTT <= 0 || c.ackedSent == 0 || c.acked.Load() != 2 {
+			t.Fatal("a subsequent push sent once did not provide an RTT sample")
+		}
 	}
 }
 
