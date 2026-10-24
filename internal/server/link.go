@@ -24,6 +24,7 @@ func (s *Server) bringUpLink(ctx context.Context, cfg Config, cancel context.Can
 		OnData: s.onData, OnPeerData: s.onPeerData, Resolver: s.resolver,
 		OnDatagram: s.onDatagram, OnPeerDatagram: s.onPeerDatagram,
 		ProxyAddr: s.socksProxyAddr, ProxyPort: s.socksProxyPort,
+		UDPReadBuffer: 1 << 20, // ai-generated: absorb measured WebRTC receive bursts on the server.
 	})
 	ln, err := transport.New(ctx, cfg.Transport, linkCfg)
 	if err != nil {

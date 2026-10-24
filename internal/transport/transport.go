@@ -277,9 +277,11 @@ type Config struct {
 	OnPeerDatagram func(peerID string, data []byte)
 	DNSServer      string
 	Resolver       protect.Lookup
-	ProxyAddr      string
-	ProxyPort      int
-	DTLSProfile    engine.DTLSProfile
+	// ai-generated: zero retains the UDP socket default on client links.
+	UDPReadBuffer int
+	ProxyAddr     string
+	ProxyPort     int
+	DTLSProfile   engine.DTLSProfile
 
 	// RequireTargetedPeer makes single-peer engines ignore broadcast frames
 	// from unrelated olcrtc clients until a peer sends a frame addressed to
@@ -308,6 +310,7 @@ func (c Config) EngineConfig() enginebuiltin.Config {
 		OnPeerDatagram:      c.OnPeerDatagram,
 		DNSServer:           c.DNSServer,
 		Resolver:            c.Resolver,
+		UDPReadBuffer:       c.UDPReadBuffer, // ai-generated: forward the per-link UDP budget.
 		DTLSProfile:         c.DTLSProfile,
 		ProxyAddr:           c.ProxyAddr,
 		ProxyPort:           c.ProxyPort,

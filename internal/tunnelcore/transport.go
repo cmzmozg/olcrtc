@@ -24,12 +24,14 @@ type LinkConfig struct {
 
 // LinkRoleConfig contains transport fields that differ by tunnel role.
 type LinkRoleConfig struct {
-	DeviceID            string
-	OnData              func([]byte)
-	OnPeerData          func(string, []byte)
-	OnDatagram          func([]byte)
-	OnPeerDatagram      func(string, []byte)
-	Resolver            protect.Lookup
+	DeviceID       string
+	OnData         func([]byte)
+	OnPeerData     func(string, []byte)
+	OnDatagram     func([]byte)
+	OnPeerDatagram func(string, []byte)
+	Resolver       protect.Lookup
+	// ai-generated: per-role UDP receive budget, left unset by clients.
+	UDPReadBuffer       int
 	ProxyAddr           string
 	ProxyPort           int
 	RequireTargetedPeer bool
@@ -54,6 +56,7 @@ func BuildTransportConfig(base LinkConfig, role LinkRoleConfig) transport.Config
 		DNSServer:           base.DNSServer,
 		DTLSProfile:         base.DTLSProfile,
 		Resolver:            Resolver(role.Resolver, base.DNSServer),
+		UDPReadBuffer:       role.UDPReadBuffer, // ai-generated: preserve the role's UDP budget.
 		ProxyAddr:           role.ProxyAddr,
 		ProxyPort:           role.ProxyPort,
 		RequireTargetedPeer: role.RequireTargetedPeer,

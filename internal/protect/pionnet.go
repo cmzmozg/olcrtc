@@ -24,6 +24,8 @@ import (
 	"syscall"
 
 	"github.com/pion/transport/v4"
+
+	"github.com/openlibrecommunity/olcrtc/internal/logger"
 )
 
 // ErrUnexpectedConnType is returned when a protected listen/dial yields an
@@ -55,6 +57,28 @@ const (
 // tunnel-interface filtering.
 type ProtectedNet struct {
 	resolver Lookup
+	// ai-generated: adapter-local UDP receive budget, zero keeps platform defaults.
+	udpReadBuffer int
+}
+
+// WithUDPReadBuffer returns an adapter copy with a per-socket receive budget.
+// ai-generated: copy the adapter so configuring one session cannot change another.
+func (n *ProtectedNet) WithUDPReadBuffer(size int) *ProtectedNet {
+	configured := *n
+	configured.udpReadBuffer = size
+	return &configured
+}
+
+// setUDPReadBuffer keeps socket creation usable when the host refuses tuning.
+// ai-generated: tune UDP sockets only and report errors without changing protection or TCP.
+func (n *ProtectedNet) setUDPReadBuffer(conn any) {
+	udp, ok := conn.(*net.UDPConn)
+	if !ok || n.udpReadBuffer <= 0 {
+		return
+	}
+	if err := udp.SetReadBuffer(n.udpReadBuffer); err != nil {
+		logger.Warnf("UDP receive buffer request (%d bytes) failed: %v", n.udpReadBuffer, err)
+	}
 }
 
 // NewProtectedNet builds a ProtectedNet with platform-specific interface
@@ -136,6 +160,7 @@ func (n *ProtectedNet) ListenPacket(network, address string) (net.PacketConn, er
 	if err != nil {
 		return nil, fmt.Errorf("listen packet %s %q: %w", network, address, err)
 	}
+	n.setUDPReadBuffer(conn) // ai-generated: apply the adapter's UDP receive budget.
 	return conn, nil
 }
 
@@ -152,6 +177,7 @@ func (n *ProtectedNet) ListenUDP(network string, locAddr *net.UDPAddr) (transpor
 		_ = pc.Close()
 		return nil, ErrUnexpectedConnType
 	}
+	n.setUDPReadBuffer(uc) // ai-generated: apply the adapter's UDP receive budget.
 	return uc, nil
 }
 
@@ -164,6 +190,7 @@ func (n *ProtectedNet) Dial(network, address string) (net.Conn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("dial %s %q: %w", network, address, err)
 	}
+	n.setUDPReadBuffer(conn) // ai-generated: apply the budget when the generic dial opened UDP.
 	return conn, nil
 }
 
@@ -183,6 +210,7 @@ func (n *ProtectedNet) DialUDP(network string, laddr, raddr *net.UDPAddr) (trans
 		_ = conn.Close()
 		return nil, ErrUnexpectedConnType
 	}
+	n.setUDPReadBuffer(uc) // ai-generated: apply the adapter's UDP receive budget.
 	return uc, nil
 }
 

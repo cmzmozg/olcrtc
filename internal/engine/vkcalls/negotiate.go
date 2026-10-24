@@ -194,6 +194,7 @@ func newWebRTCAPI(offer string, cfg engine.Config, resolver protect.Lookup) (*we
 		IPv4Only:         true,
 		ProxyDialer:      true,
 		DisableMulticast: true,
+		UDPReadBuffer:    cfg.UDPReadBuffer, // ai-generated: apply the server's receive budget to VK sockets.
 	})
 	if err != nil {
 		return nil, err //nolint:wrapcheck // shared builder already adds protected-net context
@@ -216,6 +217,8 @@ func newWebRTCAPI(offer string, cfg engine.Config, resolver protect.Lookup) (*we
 		return nil, fmt.Errorf("vkcalls: twcc: %w", err)
 	}
 	registry.Add(sdesStamperFactory{mid: publishMid(offer), rid: "l"})
+	// ai-generated: enter the RTCP chain with one shared decoded-packet cache.
+	registry.Add(rtcpCacheFactory{})
 	opts := []func(*webrtc.API){
 		webrtc.WithSettingEngine(settings),
 		webrtc.WithMediaEngine(media),

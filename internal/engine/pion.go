@@ -19,6 +19,8 @@ type PionSettingsOptions struct {
 	IPv4Only         bool
 	ProxyDialer      bool
 	DisableMulticast bool
+	// ai-generated: optional per-socket UDP receive budget, without host sysctl changes.
+	UDPReadBuffer int
 	// DTLSProfile selects a fixed ClientHello profile for this session; empty or
 	// "off" keeps the stock Pion handshake. Validated before any dialing.
 	DTLSProfile DTLSProfile
@@ -32,7 +34,9 @@ func NewPionSettings(opts PionSettingsOptions) (PionSettings, error) {
 	if err := ValidateDTLSProfile(opts.DTLSProfile); err != nil {
 		return nil, err
 	}
-	useProtectedNet := protect.HasProtector() || opts.Resolver != nil || runtime.GOOS == "android"
+	// ai-generated: a UDP budget also needs the protected network socket hooks.
+	useProtectedNet := protect.HasProtector() || opts.Resolver != nil ||
+		runtime.GOOS == "android" || opts.UDPReadBuffer > 0
 	var protectedNet *protect.ProtectedNet
 	if useProtectedNet {
 		var err error
@@ -40,6 +44,7 @@ func NewPionSettings(opts PionSettingsOptions) (PionSettings, error) {
 		if err != nil {
 			return nil, fmt.Errorf("protected net: %w", err)
 		}
+		protectedNet = protectedNet.WithUDPReadBuffer(opts.UDPReadBuffer) // ai-generated: configure this adapter only.
 	}
 	if opts.LoggerFactory == nil && !opts.IPv4Only && protectedNet == nil {
 		// A chosen DTLS profile still has to reach SDK-owned settings, so only

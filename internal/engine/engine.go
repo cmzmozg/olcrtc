@@ -56,6 +56,8 @@ type Config struct {
 	OnPeerDatagram func(peerID string, data []byte)
 	DNSServer      string
 	Resolver       protect.Lookup
+	// ai-generated: UDP socket receive budget; zero preserves the host default.
+	UDPReadBuffer int
 	// DTLSProfile selects a fixed ClientHello profile for this session;
 	// empty keeps the stock Pion handshake. Validated before dialing.
 	DTLSProfile DTLSProfile

@@ -40,14 +40,16 @@ var ErrAuthFailed = errors.New("auth provider rejected the request")
 // Config holds the inputs to [Open]. The fields mirror the subset of
 // transport.Config that engines consume.
 type Config struct {
-	RoomURL             string
-	Name                string
-	OnData              func([]byte)
-	OnPeerData          func(peerID string, data []byte)
-	OnDatagram          func([]byte)
-	OnPeerDatagram      func(peerID string, data []byte)
-	DNSServer           string
-	Resolver            protect.Lookup
+	RoomURL        string
+	Name           string
+	OnData         func([]byte)
+	OnPeerData     func(peerID string, data []byte)
+	OnDatagram     func([]byte)
+	OnPeerDatagram func(peerID string, data []byte)
+	DNSServer      string
+	Resolver       protect.Lookup
+	// ai-generated: forward the server's optional UDP receive budget.
+	UDPReadBuffer       int
 	DTLSProfile         engine.DTLSProfile
 	ProxyAddr           string
 	ProxyPort           int
@@ -147,6 +149,7 @@ func register(name string, provider auth.Provider) {
 			OnPeerDatagram:      cfg.OnPeerDatagram,
 			DNSServer:           cfg.DNSServer,
 			Resolver:            cfg.Resolver,
+			UDPReadBuffer:       cfg.UDPReadBuffer, // ai-generated: preserve the per-link UDP budget.
 			DTLSProfile:         cfg.DTLSProfile,
 			ProxyAddr:           cfg.ProxyAddr,
 			ProxyPort:           cfg.ProxyPort,
