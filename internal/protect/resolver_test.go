@@ -547,3 +547,61 @@ func TestExchangeStopsWithTheContext(t *testing.T) {
 		t.Fatalf("Exchange() outlived its context by %s", time.Since(start))
 	}
 }
+
+// ai-generated: IPv4-only lookup sends exactly one A question through configured or host DNS.
+func TestLookupIPv4DoesNotAskAAAA(t *testing.T) {
+	for _, configured := range []bool{true, false} {
+		t.Run(map[bool]string{true: "configured", false: "host"}[configured], func(t *testing.T) {
+			dns := startDNS(t, map[string]string{"only-v4.test": "192.0.2.10"})
+			r := newTestResolver(t, "", dns)
+			if configured {
+				r = newTestResolver(t, dns.Addr, nil)
+			}
+			ips, err := lookupV4(t, r, "only-v4.test.", time.Second)
+			if err != nil || len(ips) != 1 || ips[0].String() != "192.0.2.10" {
+				t.Fatalf("IPv4 lookup = %v, %v", ips, err)
+			}
+			if count := dns.Queries(); count != 1 {
+				t.Fatalf("IPv4 lookup sent %d questions, want only A", count)
+			}
+		})
+	}
+}
+
+// ai-generated: fallback depends on the requested family, not an answer in an unused family.
+func TestLookupIPv4FallsBackOnNoData(t *testing.T) {
+	configured := startDNS(t, nil)
+	host := startDNS(t, map[string]string{"only-v4.test": "192.0.2.20"})
+	r := newTestResolver(t, configured.Addr, host)
+	ips, err := lookupV4(t, r, "only-v4.test.", time.Second)
+	if err != nil || len(ips) != 1 || ips[0].String() != "192.0.2.20" {
+		t.Fatalf("fallback = %v, %v", ips, err)
+	}
+	if configured.Queries() != 1 || host.Queries() != 1 {
+		t.Fatalf("queries configured=%d host=%d, want one A each", configured.Queries(), host.Queries())
+	}
+}
+
+// ai-generated: an IPv6-only lookup must not accept or query the available IPv4 answer.
+func TestLookupIPv6DoesNotAskA(t *testing.T) {
+	dns := startDNS(t, map[string]string{"only-v4.test": "192.0.2.10"})
+	r := newTestResolver(t, dns.Addr, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	ips, err := r.LookupIP(ctx, "ip6", "only-v4.test.")
+	if err == nil || len(ips) != 0 || dns.Queries() != 1 {
+		t.Fatalf("IPv6 lookup = %v, %v, questions=%d; want only AAAA and no data", ips, err, dns.Queries())
+	}
+}
+
+// ai-generated: the dual-stack API retains both queries for NAT64 and family fallback callers.
+func TestLookupFamiliesStillAsksBothFamilies(t *testing.T) {
+	dns := startDNS(t, map[string]string{"dual.test": "192.0.2.10"})
+	r := newTestResolver(t, dns.Addr, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	v6, v4, err := r.LookupFamilies(ctx, "dual.test.")
+	if err != nil || len(v6) != 0 || len(v4) != 1 || dns.Queries() != 2 {
+		t.Fatalf("dual lookup = %v, %v, %v; questions=%d", v6, v4, err, dns.Queries())
+	}
+}

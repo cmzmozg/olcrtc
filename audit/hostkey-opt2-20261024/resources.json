@@ -1,0 +1,848 @@
+[
+  {
+    "label": "opt2-a1",
+    "test_unit": {
+      "MainPID": 903032,
+      "NRestarts": 0,
+      "MemoryPeak": 34816000,
+      "CPUUsageNSec": 20850542000,
+      "ActiveState": "active",
+      "usage_usec": 20925039,
+      "user_usec": 9836711,
+      "system_usec": 11088327,
+      "nice_usec": 0,
+      "core_sched.force_idle_usec": 0,
+      "nr_periods": 1114,
+      "nr_throttled": 0,
+      "throttled_usec": 0,
+      "nr_bursts": 0,
+      "burst_usec": 0,
+      "low": 0,
+      "high": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_kill": 0,
+      "oom_group_kill": 0,
+      "sock_throttled": 0,
+      "phase_elapsed_s": 113.58655858039856,
+      "cpu_mean_percent_one_core": 18.356522339077312,
+      "memory_peak_mib": 33.203125
+    },
+    "snapshots": {
+      "before": {
+        "utc": "2026-10-24T07:43:55Z",
+        "production": {
+          "MainPID": "851087",
+          "NRestarts": "0",
+          "MemoryCurrent": "47218688",
+          "CPUUsageNSec": "511320395000",
+          "ActiveState": "active",
+          "FragmentPath": "/etc/systemd/system/olcrtc-vk.service",
+          "unit": "olcrtc-vk",
+          "binary": "/opt/olcrtc-releases/sha-41b6217b0a815a7b7f3749b99e13a8f5921a43ed/olcrtc",
+          "binary_sha256": "5a5c6e52315a1ee5b02ef4e3a92493adc053788a5dc876b11498ce87e2659dff",
+          "configs": [
+            "/opt/olcrtc-vk/server.yaml"
+          ],
+          "selected_config": [
+            {
+              "mode": "srv",
+              "net": {
+                "transport": "vp8channel",
+                "dns": "1.1.1.1:53"
+              },
+              "vp8": {
+                "fps": 30,
+                "batch_size": 64
+              },
+              "provider": "vkcalls",
+              "has_room": true
+            }
+          ],
+          "proc_status": [
+            "VmRSS:\t   68700 kB",
+            "Threads:\t9"
+          ]
+        },
+        "global_udp": {
+          "InDatagrams": 51684174,
+          "NoPorts": 20160,
+          "InErrors": 971,
+          "OutDatagrams": 18617060,
+          "RcvbufErrors": 971,
+          "SndbufErrors": 510,
+          "InCsumErrors": 0,
+          "IgnoredMulti": 521,
+          "MemErrors": 0
+        }
+      },
+      "after": {
+        "utc": "2026-10-24T07:45:37Z",
+        "production": {
+          "MainPID": "851087",
+          "NRestarts": "0",
+          "MemoryCurrent": "46067712",
+          "CPUUsageNSec": "520740396000",
+          "ActiveState": "active",
+          "FragmentPath": "/etc/systemd/system/olcrtc-vk.service",
+          "unit": "olcrtc-vk",
+          "binary": "/opt/olcrtc-releases/sha-41b6217b0a815a7b7f3749b99e13a8f5921a43ed/olcrtc",
+          "binary_sha256": "5a5c6e52315a1ee5b02ef4e3a92493adc053788a5dc876b11498ce87e2659dff",
+          "configs": [
+            "/opt/olcrtc-vk/server.yaml"
+          ],
+          "selected_config": [
+            {
+              "mode": "srv",
+              "net": {
+                "transport": "vp8channel",
+                "dns": "1.1.1.1:53"
+              },
+              "vp8": {
+                "fps": 30,
+                "batch_size": 64
+              },
+              "provider": "vkcalls",
+              "has_room": true
+            }
+          ],
+          "proc_status": [
+            "VmRSS:\t   67676 kB",
+            "Threads:\t9"
+          ]
+        },
+        "global_udp": {
+          "InDatagrams": 51987943,
+          "NoPorts": 20171,
+          "InErrors": 2112,
+          "OutDatagrams": 18821082,
+          "RcvbufErrors": 2112,
+          "SndbufErrors": 510,
+          "InCsumErrors": 0,
+          "IgnoredMulti": 521,
+          "MemErrors": 0
+        }
+      }
+    },
+    "global_udp_delta": {
+      "InDatagrams": 303769,
+      "NoPorts": 11,
+      "InErrors": 1141,
+      "OutDatagrams": 204022,
+      "RcvbufErrors": 1141,
+      "SndbufErrors": 0,
+      "InCsumErrors": 0,
+      "IgnoredMulti": 0,
+      "MemErrors": 0
+    },
+    "client_events": {
+      "reconnect_attempts": 0,
+      "holding_pushes": 0
+    }
+  },
+  {
+    "label": "opt2-b1",
+    "test_unit": {
+      "MainPID": 904574,
+      "NRestarts": 0,
+      "MemoryPeak": 39424000,
+      "CPUUsageNSec": 24757052000,
+      "ActiveState": "active",
+      "usage_usec": 24841650,
+      "user_usec": 11651021,
+      "system_usec": 13190629,
+      "nice_usec": 0,
+      "core_sched.force_idle_usec": 0,
+      "nr_periods": 1098,
+      "nr_throttled": 0,
+      "throttled_usec": 0,
+      "nr_bursts": 0,
+      "burst_usec": 0,
+      "low": 0,
+      "high": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_kill": 0,
+      "oom_group_kill": 0,
+      "sock_throttled": 0,
+      "phase_elapsed_s": 112.20825242996216,
+      "cpu_mean_percent_one_core": 22.06348594142199,
+      "memory_peak_mib": 37.59765625
+    },
+    "snapshots": {
+      "before": {
+        "utc": "2026-10-24T07:45:54Z",
+        "production": {
+          "MainPID": "851087",
+          "NRestarts": "0",
+          "MemoryCurrent": "48246784",
+          "CPUUsageNSec": "523399131000",
+          "ActiveState": "active",
+          "FragmentPath": "/etc/systemd/system/olcrtc-vk.service",
+          "unit": "olcrtc-vk",
+          "binary": "/opt/olcrtc-releases/sha-41b6217b0a815a7b7f3749b99e13a8f5921a43ed/olcrtc",
+          "binary_sha256": "5a5c6e52315a1ee5b02ef4e3a92493adc053788a5dc876b11498ce87e2659dff",
+          "configs": [
+            "/opt/olcrtc-vk/server.yaml"
+          ],
+          "selected_config": [
+            {
+              "mode": "srv",
+              "net": {
+                "transport": "vp8channel",
+                "dns": "1.1.1.1:53"
+              },
+              "vp8": {
+                "fps": 30,
+                "batch_size": 64
+              },
+              "provider": "vkcalls",
+              "has_room": true
+            }
+          ],
+          "proc_status": [
+            "VmRSS:\t   69564 kB",
+            "Threads:\t9"
+          ]
+        },
+        "global_udp": {
+          "InDatagrams": 51992235,
+          "NoPorts": 20181,
+          "InErrors": 2112,
+          "OutDatagrams": 18832435,
+          "RcvbufErrors": 2112,
+          "SndbufErrors": 510,
+          "InCsumErrors": 0,
+          "IgnoredMulti": 521,
+          "MemErrors": 0
+        }
+      },
+      "after": {
+        "utc": "2026-10-24T07:47:35Z",
+        "production": {
+          "MainPID": "851087",
+          "NRestarts": "0",
+          "MemoryCurrent": "47300608",
+          "CPUUsageNSec": "532478772000",
+          "ActiveState": "active",
+          "FragmentPath": "/etc/systemd/system/olcrtc-vk.service",
+          "unit": "olcrtc-vk",
+          "binary": "/opt/olcrtc-releases/sha-41b6217b0a815a7b7f3749b99e13a8f5921a43ed/olcrtc",
+          "binary_sha256": "5a5c6e52315a1ee5b02ef4e3a92493adc053788a5dc876b11498ce87e2659dff",
+          "configs": [
+            "/opt/olcrtc-vk/server.yaml"
+          ],
+          "selected_config": [
+            {
+              "mode": "srv",
+              "net": {
+                "transport": "vp8channel",
+                "dns": "1.1.1.1:53"
+              },
+              "vp8": {
+                "fps": 30,
+                "batch_size": 64
+              },
+              "provider": "vkcalls",
+              "has_room": true
+            }
+          ],
+          "proc_status": [
+            "VmRSS:\t   68884 kB",
+            "Threads:\t9"
+          ]
+        },
+        "global_udp": {
+          "InDatagrams": 52367283,
+          "NoPorts": 20192,
+          "InErrors": 6955,
+          "OutDatagrams": 19096955,
+          "RcvbufErrors": 6955,
+          "SndbufErrors": 511,
+          "InCsumErrors": 0,
+          "IgnoredMulti": 521,
+          "MemErrors": 0
+        }
+      }
+    },
+    "global_udp_delta": {
+      "InDatagrams": 375048,
+      "NoPorts": 11,
+      "InErrors": 4843,
+      "OutDatagrams": 264520,
+      "RcvbufErrors": 4843,
+      "SndbufErrors": 1,
+      "InCsumErrors": 0,
+      "IgnoredMulti": 0,
+      "MemErrors": 0
+    },
+    "client_events": {
+      "reconnect_attempts": 0,
+      "holding_pushes": 0
+    }
+  },
+  {
+    "label": "opt2-c1",
+    "test_unit": {
+      "MainPID": 905987,
+      "NRestarts": 0,
+      "MemoryPeak": 39108608,
+      "CPUUsageNSec": 21704930000,
+      "ActiveState": "active",
+      "usage_usec": 21786928,
+      "user_usec": 10518838,
+      "system_usec": 11268090,
+      "nice_usec": 0,
+      "core_sched.force_idle_usec": 0,
+      "nr_periods": 1086,
+      "nr_throttled": 0,
+      "throttled_usec": 0,
+      "nr_bursts": 0,
+      "burst_usec": 0,
+      "low": 0,
+      "high": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_kill": 0,
+      "oom_group_kill": 0,
+      "sock_throttled": 0,
+      "phase_elapsed_s": 110.8473129272461,
+      "cpu_mean_percent_one_core": 19.58092571377521,
+      "memory_peak_mib": 37.296875
+    },
+    "snapshots": {
+      "before": {
+        "utc": "2026-10-24T07:47:51Z",
+        "production": {
+          "MainPID": "851087",
+          "NRestarts": "0",
+          "MemoryCurrent": "47476736",
+          "CPUUsageNSec": "534254962000",
+          "ActiveState": "active",
+          "FragmentPath": "/etc/systemd/system/olcrtc-vk.service",
+          "unit": "olcrtc-vk",
+          "binary": "/opt/olcrtc-releases/sha-41b6217b0a815a7b7f3749b99e13a8f5921a43ed/olcrtc",
+          "binary_sha256": "5a5c6e52315a1ee5b02ef4e3a92493adc053788a5dc876b11498ce87e2659dff",
+          "configs": [
+            "/opt/olcrtc-vk/server.yaml"
+          ],
+          "selected_config": [
+            {
+              "mode": "srv",
+              "net": {
+                "transport": "vp8channel",
+                "dns": "1.1.1.1:53"
+              },
+              "vp8": {
+                "fps": 30,
+                "batch_size": 64
+              },
+              "provider": "vkcalls",
+              "has_room": true
+            }
+          ],
+          "proc_status": [
+            "VmRSS:\t   68568 kB",
+            "Threads:\t9"
+          ]
+        },
+        "global_udp": {
+          "InDatagrams": 52371067,
+          "NoPorts": 20202,
+          "InErrors": 6955,
+          "OutDatagrams": 19103563,
+          "RcvbufErrors": 6955,
+          "SndbufErrors": 511,
+          "InCsumErrors": 0,
+          "IgnoredMulti": 521,
+          "MemErrors": 0
+        }
+      },
+      "after": {
+        "utc": "2026-10-24T07:49:31Z",
+        "production": {
+          "MainPID": "851087",
+          "NRestarts": "0",
+          "MemoryCurrent": "47161344",
+          "CPUUsageNSec": "542273059000",
+          "ActiveState": "active",
+          "FragmentPath": "/etc/systemd/system/olcrtc-vk.service",
+          "unit": "olcrtc-vk",
+          "binary": "/opt/olcrtc-releases/sha-41b6217b0a815a7b7f3749b99e13a8f5921a43ed/olcrtc",
+          "binary_sha256": "5a5c6e52315a1ee5b02ef4e3a92493adc053788a5dc876b11498ce87e2659dff",
+          "configs": [
+            "/opt/olcrtc-vk/server.yaml"
+          ],
+          "selected_config": [
+            {
+              "mode": "srv",
+              "net": {
+                "transport": "vp8channel",
+                "dns": "1.1.1.1:53"
+              },
+              "vp8": {
+                "fps": 30,
+                "batch_size": 64
+              },
+              "provider": "vkcalls",
+              "has_room": true
+            }
+          ],
+          "proc_status": [
+            "VmRSS:\t   68696 kB",
+            "Threads:\t9"
+          ]
+        },
+        "global_udp": {
+          "InDatagrams": 52778818,
+          "NoPorts": 20206,
+          "InErrors": 10631,
+          "OutDatagrams": 19324005,
+          "RcvbufErrors": 10631,
+          "SndbufErrors": 511,
+          "InCsumErrors": 0,
+          "IgnoredMulti": 523,
+          "MemErrors": 0
+        }
+      }
+    },
+    "global_udp_delta": {
+      "InDatagrams": 407751,
+      "NoPorts": 4,
+      "InErrors": 3676,
+      "OutDatagrams": 220442,
+      "RcvbufErrors": 3676,
+      "SndbufErrors": 0,
+      "InCsumErrors": 0,
+      "IgnoredMulti": 2,
+      "MemErrors": 0
+    },
+    "client_events": {
+      "reconnect_attempts": 0,
+      "holding_pushes": 0
+    }
+  },
+  {
+    "label": "opt2-a2",
+    "test_unit": {
+      "MainPID": 907341,
+      "NRestarts": 0,
+      "MemoryPeak": 41209856,
+      "CPUUsageNSec": 21816655000,
+      "ActiveState": "active",
+      "usage_usec": 21912507,
+      "user_usec": 10724877,
+      "system_usec": 11187630,
+      "nice_usec": 0,
+      "core_sched.force_idle_usec": 0,
+      "nr_periods": 1098,
+      "nr_throttled": 0,
+      "throttled_usec": 0,
+      "nr_bursts": 0,
+      "burst_usec": 0,
+      "low": 0,
+      "high": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_kill": 0,
+      "oom_group_kill": 0,
+      "sock_throttled": 0,
+      "phase_elapsed_s": 111.98441791534424,
+      "cpu_mean_percent_one_core": 19.48186667942724,
+      "memory_peak_mib": 39.30078125
+    },
+    "snapshots": {
+      "before": {
+        "utc": "2026-10-24T07:49:47Z",
+        "production": {
+          "MainPID": "851087",
+          "NRestarts": "0",
+          "MemoryCurrent": "47407104",
+          "CPUUsageNSec": "543820179000",
+          "ActiveState": "active",
+          "FragmentPath": "/etc/systemd/system/olcrtc-vk.service",
+          "unit": "olcrtc-vk",
+          "binary": "/opt/olcrtc-releases/sha-41b6217b0a815a7b7f3749b99e13a8f5921a43ed/olcrtc",
+          "binary_sha256": "5a5c6e52315a1ee5b02ef4e3a92493adc053788a5dc876b11498ce87e2659dff",
+          "configs": [
+            "/opt/olcrtc-vk/server.yaml"
+          ],
+          "selected_config": [
+            {
+              "mode": "srv",
+              "net": {
+                "transport": "vp8channel",
+                "dns": "1.1.1.1:53"
+              },
+              "vp8": {
+                "fps": 30,
+                "batch_size": 64
+              },
+              "provider": "vkcalls",
+              "has_room": true
+            }
+          ],
+          "proc_status": [
+            "VmRSS:\t   68700 kB",
+            "Threads:\t9"
+          ]
+        },
+        "global_udp": {
+          "InDatagrams": 52782572,
+          "NoPorts": 20216,
+          "InErrors": 10631,
+          "OutDatagrams": 19328923,
+          "RcvbufErrors": 10631,
+          "SndbufErrors": 511,
+          "InCsumErrors": 0,
+          "IgnoredMulti": 523,
+          "MemErrors": 0
+        }
+      },
+      "after": {
+        "utc": "2026-10-24T07:51:28Z",
+        "production": {
+          "MainPID": "851087",
+          "NRestarts": "0",
+          "MemoryCurrent": "50290688",
+          "CPUUsageNSec": "552409142000",
+          "ActiveState": "active",
+          "FragmentPath": "/etc/systemd/system/olcrtc-vk.service",
+          "unit": "olcrtc-vk",
+          "binary": "/opt/olcrtc-releases/sha-41b6217b0a815a7b7f3749b99e13a8f5921a43ed/olcrtc",
+          "binary_sha256": "5a5c6e52315a1ee5b02ef4e3a92493adc053788a5dc876b11498ce87e2659dff",
+          "configs": [
+            "/opt/olcrtc-vk/server.yaml"
+          ],
+          "selected_config": [
+            {
+              "mode": "srv",
+              "net": {
+                "transport": "vp8channel",
+                "dns": "1.1.1.1:53"
+              },
+              "vp8": {
+                "fps": 30,
+                "batch_size": 64
+              },
+              "provider": "vkcalls",
+              "has_room": true
+            }
+          ],
+          "proc_status": [
+            "VmRSS:\t   71772 kB",
+            "Threads:\t9"
+          ]
+        },
+        "global_udp": {
+          "InDatagrams": 53068115,
+          "NoPorts": 20231,
+          "InErrors": 12598,
+          "OutDatagrams": 19513514,
+          "RcvbufErrors": 12598,
+          "SndbufErrors": 512,
+          "InCsumErrors": 0,
+          "IgnoredMulti": 524,
+          "MemErrors": 0
+        }
+      }
+    },
+    "global_udp_delta": {
+      "InDatagrams": 285543,
+      "NoPorts": 15,
+      "InErrors": 1967,
+      "OutDatagrams": 184591,
+      "RcvbufErrors": 1967,
+      "SndbufErrors": 1,
+      "InCsumErrors": 0,
+      "IgnoredMulti": 1,
+      "MemErrors": 0
+    },
+    "client_events": {
+      "reconnect_attempts": 0,
+      "holding_pushes": 0
+    }
+  },
+  {
+    "label": "opt2-c2",
+    "test_unit": {
+      "MainPID": 910396,
+      "NRestarts": 0,
+      "MemoryPeak": 37527552,
+      "CPUUsageNSec": 21968091000,
+      "ActiveState": "active",
+      "usage_usec": 22053181,
+      "user_usec": 10692936,
+      "system_usec": 11360245,
+      "nice_usec": 0,
+      "core_sched.force_idle_usec": 0,
+      "nr_periods": 1076,
+      "nr_throttled": 0,
+      "throttled_usec": 0,
+      "nr_bursts": 0,
+      "burst_usec": 0,
+      "low": 0,
+      "high": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_kill": 0,
+      "oom_group_kill": 0,
+      "sock_throttled": 0,
+      "phase_elapsed_s": 109.47383999824524,
+      "cpu_mean_percent_one_core": 20.06697764539193,
+      "memory_peak_mib": 35.7890625
+    },
+    "snapshots": {
+      "before": {
+        "utc": "2026-10-24T07:53:59Z",
+        "production": {
+          "MainPID": "851087",
+          "NRestarts": "0",
+          "MemoryCurrent": "45273088",
+          "CPUUsageNSec": "567452197000",
+          "ActiveState": "active",
+          "FragmentPath": "/etc/systemd/system/olcrtc-vk.service",
+          "unit": "olcrtc-vk",
+          "binary": "/opt/olcrtc-releases/sha-41b6217b0a815a7b7f3749b99e13a8f5921a43ed/olcrtc",
+          "binary_sha256": "5a5c6e52315a1ee5b02ef4e3a92493adc053788a5dc876b11498ce87e2659dff",
+          "configs": [
+            "/opt/olcrtc-vk/server.yaml"
+          ],
+          "selected_config": [
+            {
+              "mode": "srv",
+              "net": {
+                "transport": "vp8channel",
+                "dns": "1.1.1.1:53"
+              },
+              "vp8": {
+                "fps": 30,
+                "batch_size": 64
+              },
+              "provider": "vkcalls",
+              "has_room": true
+            }
+          ],
+          "proc_status": [
+            "VmRSS:\t   66668 kB",
+            "Threads:\t9"
+          ]
+        },
+        "global_udp": {
+          "InDatagrams": 53088976,
+          "NoPorts": 20253,
+          "InErrors": 12598,
+          "OutDatagrams": 19540540,
+          "RcvbufErrors": 12598,
+          "SndbufErrors": 512,
+          "InCsumErrors": 0,
+          "IgnoredMulti": 524,
+          "MemErrors": 0
+        }
+      },
+      "after": {
+        "utc": "2026-10-24T07:55:37Z",
+        "production": {
+          "MainPID": "851087",
+          "NRestarts": "0",
+          "MemoryCurrent": "47411200",
+          "CPUUsageNSec": "574757901000",
+          "ActiveState": "active",
+          "FragmentPath": "/etc/systemd/system/olcrtc-vk.service",
+          "unit": "olcrtc-vk",
+          "binary": "/opt/olcrtc-releases/sha-41b6217b0a815a7b7f3749b99e13a8f5921a43ed/olcrtc",
+          "binary_sha256": "5a5c6e52315a1ee5b02ef4e3a92493adc053788a5dc876b11498ce87e2659dff",
+          "configs": [
+            "/opt/olcrtc-vk/server.yaml"
+          ],
+          "selected_config": [
+            {
+              "mode": "srv",
+              "net": {
+                "transport": "vp8channel",
+                "dns": "1.1.1.1:53"
+              },
+              "vp8": {
+                "fps": 30,
+                "batch_size": 64
+              },
+              "provider": "vkcalls",
+              "has_room": true
+            }
+          ],
+          "proc_status": [
+            "VmRSS:\t   68512 kB",
+            "Threads:\t9"
+          ]
+        },
+        "global_udp": {
+          "InDatagrams": 53447161,
+          "NoPorts": 20253,
+          "InErrors": 16363,
+          "OutDatagrams": 19743736,
+          "RcvbufErrors": 16363,
+          "SndbufErrors": 512,
+          "InCsumErrors": 0,
+          "IgnoredMulti": 524,
+          "MemErrors": 0
+        }
+      }
+    },
+    "global_udp_delta": {
+      "InDatagrams": 358185,
+      "NoPorts": 0,
+      "InErrors": 3765,
+      "OutDatagrams": 203196,
+      "RcvbufErrors": 3765,
+      "SndbufErrors": 0,
+      "InCsumErrors": 0,
+      "IgnoredMulti": 0,
+      "MemErrors": 0
+    },
+    "client_events": {
+      "reconnect_attempts": 0,
+      "holding_pushes": 0
+    }
+  },
+  {
+    "label": "opt2-a3",
+    "test_unit": {
+      "MainPID": 911708,
+      "NRestarts": 0,
+      "MemoryPeak": 40030208,
+      "CPUUsageNSec": 22030256000,
+      "ActiveState": "active",
+      "usage_usec": 22114683,
+      "user_usec": 11120975,
+      "system_usec": 10993707,
+      "nice_usec": 0,
+      "core_sched.force_idle_usec": 0,
+      "nr_periods": 1102,
+      "nr_throttled": 0,
+      "throttled_usec": 0,
+      "nr_bursts": 0,
+      "burst_usec": 0,
+      "low": 0,
+      "high": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_kill": 0,
+      "oom_group_kill": 0,
+      "sock_throttled": 0,
+      "phase_elapsed_s": 112.23338842391968,
+      "cpu_mean_percent_one_core": 19.62896808994926,
+      "memory_peak_mib": 38.17578125
+    },
+    "snapshots": {
+      "before": {
+        "utc": "2026-10-24T07:55:54Z",
+        "production": {
+          "MainPID": "851087",
+          "NRestarts": "0",
+          "MemoryCurrent": "47087616",
+          "CPUUsageNSec": "576291491000",
+          "ActiveState": "active",
+          "FragmentPath": "/etc/systemd/system/olcrtc-vk.service",
+          "unit": "olcrtc-vk",
+          "binary": "/opt/olcrtc-releases/sha-41b6217b0a815a7b7f3749b99e13a8f5921a43ed/olcrtc",
+          "binary_sha256": "5a5c6e52315a1ee5b02ef4e3a92493adc053788a5dc876b11498ce87e2659dff",
+          "configs": [
+            "/opt/olcrtc-vk/server.yaml"
+          ],
+          "selected_config": [
+            {
+              "mode": "srv",
+              "net": {
+                "transport": "vp8channel",
+                "dns": "1.1.1.1:53"
+              },
+              "vp8": {
+                "fps": 30,
+                "batch_size": 64
+              },
+              "provider": "vkcalls",
+              "has_room": true
+            }
+          ],
+          "proc_status": [
+            "VmRSS:\t   68512 kB",
+            "Threads:\t9"
+          ]
+        },
+        "global_udp": {
+          "InDatagrams": 53451306,
+          "NoPorts": 20263,
+          "InErrors": 16363,
+          "OutDatagrams": 19748156,
+          "RcvbufErrors": 16363,
+          "SndbufErrors": 512,
+          "InCsumErrors": 0,
+          "IgnoredMulti": 524,
+          "MemErrors": 0
+        }
+      },
+      "after": {
+        "utc": "2026-10-24T07:57:34Z",
+        "production": {
+          "MainPID": "851087",
+          "NRestarts": "0",
+          "MemoryCurrent": "44494848",
+          "CPUUsageNSec": "583734358000",
+          "ActiveState": "active",
+          "FragmentPath": "/etc/systemd/system/olcrtc-vk.service",
+          "unit": "olcrtc-vk",
+          "binary": "/opt/olcrtc-releases/sha-41b6217b0a815a7b7f3749b99e13a8f5921a43ed/olcrtc",
+          "binary_sha256": "5a5c6e52315a1ee5b02ef4e3a92493adc053788a5dc876b11498ce87e2659dff",
+          "configs": [
+            "/opt/olcrtc-vk/server.yaml"
+          ],
+          "selected_config": [
+            {
+              "mode": "srv",
+              "net": {
+                "transport": "vp8channel",
+                "dns": "1.1.1.1:53"
+              },
+              "vp8": {
+                "fps": 30,
+                "batch_size": 64
+              },
+              "provider": "vkcalls",
+              "has_room": true
+            }
+          ],
+          "proc_status": [
+            "VmRSS:\t   66228 kB",
+            "Threads:\t9"
+          ]
+        },
+        "global_udp": {
+          "InDatagrams": 53739138,
+          "NoPorts": 20276,
+          "InErrors": 17622,
+          "OutDatagrams": 19925898,
+          "RcvbufErrors": 17622,
+          "SndbufErrors": 512,
+          "InCsumErrors": 0,
+          "IgnoredMulti": 525,
+          "MemErrors": 0
+        }
+      }
+    },
+    "global_udp_delta": {
+      "InDatagrams": 287832,
+      "NoPorts": 13,
+      "InErrors": 1259,
+      "OutDatagrams": 177742,
+      "RcvbufErrors": 1259,
+      "SndbufErrors": 0,
+      "InCsumErrors": 0,
+      "IgnoredMulti": 1,
+      "MemErrors": 0
+    },
+    "client_events": {
+      "reconnect_attempts": 0,
+      "holding_pushes": 0
+    }
+  }
+]

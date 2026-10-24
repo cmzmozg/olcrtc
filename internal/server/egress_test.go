@@ -279,8 +279,8 @@ func TestDialResolvesTheNameOnce(t *testing.T) {
 	}
 }
 
-// A name with several addresses is dialed as before: each checked address in
-// order until one answers.
+// A refused first address immediately permits the next checked address.
+// ai-generated: retain the immediate-failure ordering regression test for bounded failover.
 func TestDialTriesTheNextCheckedAddress(t *testing.T) {
 	lookup := &stubLookup{answers: map[string][]net.IP{
 		testTwoAddrsHost: {net.ParseIP(testPublicIP), net.ParseIP(testPublicIPAlt)},

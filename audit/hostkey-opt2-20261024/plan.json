@@ -1,0 +1,24 @@
+{
+  "baseline": "f30b64",
+  "variants": [
+    "f60b64",
+    "f60b32"
+  ],
+  "controls": [
+    "f30b64-before",
+    "f30b64-after"
+  ],
+  "server_binary_sha256": "5a5c6e52315a1ee5b02ef4e3a92493adc053788a5dc876b11498ce87e2659dff",
+  "server_commit": "41b6217b0a815a7b7f3749b99e13a8f5921a43ed",
+  "client_binary_sha256": "629ddebde074356e9bb02c8b9b582c0d04daa6ec1193641275cd7cec348bb787",
+  "client_profile_sha256": "03f5debd9471246951d009f8d021a0732669915abf28a942f5465cb72d3c3792",
+  "download_load_s": 40,
+  "upload_load_s": 30,
+  "parallel_workers": 2,
+  "acceptance": {
+    "no_new_timeouts_or_reconnects": true,
+    "mixed_goodput_at_least_baseline_fraction": 0.9,
+    "loaded_ttfb_max_median_ratio": 1.1,
+    "require_repeat_before_rollout": true
+  }
+}

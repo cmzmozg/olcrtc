@@ -262,7 +262,7 @@ func (s *Server) dial(ctx context.Context, request ConnectRequest) (net.Conn, er
 }
 
 // dialDirect resolves the target once, through the egress policy, and dials
-// the addresses that passed, in order, as literals: the dial resolves
+// the addresses that passed as literals with bounded failover: the dial resolves
 // nothing, so a second answer for the name cannot reach past the check.
 // Upstream's IPv4-only egress (tcp4) is kept.
 //
@@ -276,21 +276,7 @@ func (s *Server) dialDirect(ctx context.Context, request ConnectRequest) (net.Co
 	if dial == nil {
 		dial = protect.NewDialer(s.resolver).DialContext
 	}
-	port := strconv.Itoa(request.Port)
-	var firstErr error
-	for _, addr := range addrs {
-		conn, err := dial(ctx, "tcp4", net.JoinHostPort(addr.String(), port))
-		if err == nil {
-			return conn, nil
-		}
-		if firstErr == nil {
-			firstErr = err
-		}
-		if ctx.Err() != nil {
-			break
-		}
-	}
-	return nil, fmt.Errorf("dial failed: %w", firstErr)
+	return dialCheckedTargets(ctx, dial, addrs, strconv.Itoa(request.Port))
 }
 
 func (s *Server) socks5Connect(conn net.Conn, targetAddr string, targetPort int) error {

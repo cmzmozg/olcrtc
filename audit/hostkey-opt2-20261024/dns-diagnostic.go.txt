@@ -1,0 +1,78 @@
+
+// perf2DNS starts an isolated DNS fixture whose AAAA answer has a chosen delay.
+// ai-generated: DNS fixture for family-specific lookup diagnosis only.
+func perf2DNS(t *testing.T, delay time.Duration) (string, *atomic.Int64, *atomic.Int64) {
+	t.Helper()
+	conn, err := net.ListenPacket("udp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	var asks4, asks6 atomic.Int64
+	go func() {
+		buf := make([]byte, 1500)
+		for {
+			n, from, err := conn.ReadFrom(buf)
+			if err != nil {
+				return
+			}
+			var msg dnsmessage.Message
+			if msg.Unpack(buf[:n]) != nil || len(msg.Questions) != 1 {
+				continue
+			}
+			q := msg.Questions[0]
+			go func() {
+				answer := dnsmessage.Message{
+					Header: dnsmessage.Header{ID: msg.ID, Response: true, RecursionDesired: msg.RecursionDesired, RecursionAvailable: true},
+					Questions: []dnsmessage.Question{q},
+				}
+				if q.Type == dnsmessage.TypeA {
+					asks4.Add(1)
+					answer.Answers = []dnsmessage.Resource{{
+						Header: dnsmessage.ResourceHeader{Name: q.Name, Type: dnsmessage.TypeA, Class: dnsmessage.ClassINET, TTL: 60},
+						Body: &dnsmessage.AResource{A: [4]byte{203, 0, 113, 7}},
+					}}
+				} else {
+					asks6.Add(1)
+					time.Sleep(delay)
+				}
+				data, err := answer.Pack()
+				if err == nil {
+					_, _ = conn.WriteTo(data, from)
+				}
+			}()
+		}
+	}()
+	return conn.LocalAddr().String(), &asks4, &asks6
+}
+
+// TestPerf2IPv4WaitsForAAAA measures the current IPv4-only API over a delayed AAAA response.
+// ai-generated: bounded diagnostic, leaving production sources unchanged.
+func TestPerf2IPv4WaitsForAAAA(t *testing.T) {
+	for _, delay := range []time.Duration{0, 300 * time.Millisecond} {
+		t.Run(delay.String(), func(t *testing.T) {
+			addr, asks4, asks6 := perf2DNS(t, delay)
+			r := newTestResolver(t, addr, nil)
+			for range 3 {
+				start := time.Now()
+				ips, err := lookupV4(t, r, "perf2.test.", time.Second)
+				elapsed := time.Since(start)
+				if err != nil || len(ips) != 1 {
+					t.Fatalf("lookup: %v, addresses %d", err, len(ips))
+				}
+				t.Logf("ip4 lookup: AAAA delay=%s elapsed=%s", delay, elapsed)
+				ring, _ := r.current()
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				start = time.Now()
+				ips, err = ring.resolver().LookupIP(ctx, "ip4", "perf2.test.")
+				elapsed = time.Since(start)
+				cancel()
+				if err != nil || len(ips) != 1 {
+					t.Fatalf("A-only reference: %v, addresses %d", err, len(ips))
+				}
+				t.Logf("A-only reference: AAAA delay=%s elapsed=%s", delay, elapsed)
+			}
+			t.Logf("DNS queries: A=%d AAAA=%d", asks4.Load(), asks6.Load())
+		})
+	}
+}

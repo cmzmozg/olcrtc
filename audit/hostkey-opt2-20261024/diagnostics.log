@@ -1,0 +1,32 @@
+=== RUN   TestPerf2IPv4WaitsForAAAA
+=== RUN   TestPerf2IPv4WaitsForAAAA/0s
+    resolver_test.go:613: ip4 lookup: AAAA delay=0s elapsed=1.200817ms
+    resolver_test.go:623: A-only reference: AAAA delay=0s elapsed=392.134µs
+    resolver_test.go:613: ip4 lookup: AAAA delay=0s elapsed=500.162µs
+    resolver_test.go:623: A-only reference: AAAA delay=0s elapsed=347.653µs
+    resolver_test.go:613: ip4 lookup: AAAA delay=0s elapsed=518.338µs
+    resolver_test.go:623: A-only reference: AAAA delay=0s elapsed=268.254µs
+    resolver_test.go:625: DNS queries: A=6 AAAA=3
+=== RUN   TestPerf2IPv4WaitsForAAAA/300ms
+    resolver_test.go:613: ip4 lookup: AAAA delay=300ms elapsed=301.001552ms
+    resolver_test.go:623: A-only reference: AAAA delay=300ms elapsed=411.664µs
+    resolver_test.go:613: ip4 lookup: AAAA delay=300ms elapsed=300.968482ms
+    resolver_test.go:623: A-only reference: AAAA delay=300ms elapsed=319.483µs
+    resolver_test.go:613: ip4 lookup: AAAA delay=300ms elapsed=301.059497ms
+    resolver_test.go:623: A-only reference: AAAA delay=300ms elapsed=329.398µs
+    resolver_test.go:625: DNS queries: A=6 AAAA=3
+--- PASS: TestPerf2IPv4WaitsForAAAA (0.91s)
+    --- PASS: TestPerf2IPv4WaitsForAAAA/0s (0.00s)
+    --- PASS: TestPerf2IPv4WaitsForAAAA/300ms (0.90s)
+PASS
+ok  	github.com/openlibrecommunity/olcrtc/internal/protect	1.924s
+=== RUN   TestPerf2SequentialDial
+    egress_test.go:509: slow first=false elapsed=40.968µs dial attempts=1 DNS lookups=1
+    egress_test.go:509: slow first=false elapsed=11.106µs dial attempts=1 DNS lookups=1
+    egress_test.go:509: slow first=false elapsed=19.955µs dial attempts=1 DNS lookups=1
+    egress_test.go:509: slow first=true elapsed=300.379343ms dial attempts=2 DNS lookups=1
+    egress_test.go:509: slow first=true elapsed=300.597077ms dial attempts=2 DNS lookups=1
+    egress_test.go:509: slow first=true elapsed=300.584464ms dial attempts=2 DNS lookups=1
+--- PASS: TestPerf2SequentialDial (0.90s)
+PASS
+ok  	github.com/openlibrecommunity/olcrtc/internal/server	1.930s

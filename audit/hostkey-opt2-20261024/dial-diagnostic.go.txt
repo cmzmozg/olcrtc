@@ -1,0 +1,38 @@
+
+// TestPerf2SequentialDial measures a slow first validated address before a healthy second one.
+// ai-generated: bounded in-memory diagnosis of the existing server dial order.
+func TestPerf2SequentialDial(t *testing.T) {
+	for _, slow := range []bool{false, true} {
+		for range 3 {
+			look := &stubLookup{answers: map[string][]net.IP{
+				testTwoAddrsHost: {net.ParseIP(testPublicIP), net.ParseIP(testPublicIPAlt)},
+			}}
+			calls := 0
+			s := &Server{resolver: look}
+			s.dialTarget = func(ctx context.Context, _, _ string) (net.Conn, error) {
+				calls++
+				if slow && calls == 1 {
+					select {
+					case <-time.After(300 * time.Millisecond):
+						return nil, context.DeadlineExceeded
+					case <-ctx.Done():
+						return nil, ctx.Err()
+					}
+				}
+				left, right := net.Pipe()
+				t.Cleanup(func() { _ = left.Close(); _ = right.Close() })
+				return left, nil
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			start := time.Now()
+			conn, err := s.dialDirect(ctx, ConnectRequest{Addr: testTwoAddrsHost, Port: 443})
+			elapsed := time.Since(start)
+			cancel()
+			if err != nil {
+				t.Fatal(err)
+			}
+			_ = conn.Close()
+			t.Logf("slow first=%t elapsed=%s dial attempts=%d DNS lookups=%d", slow, elapsed, calls, look.calls())
+		}
+	}
+}

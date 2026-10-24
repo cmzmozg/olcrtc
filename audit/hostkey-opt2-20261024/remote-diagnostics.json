@@ -1,0 +1,78 @@
+{
+  "server_go_version": "go1.26.10",
+  "phases": {
+    "a1": {
+      "ice_pairs": [
+        {
+          "local": "srflx",
+          "remote": "host",
+          "rtt_ms": 45
+        }
+      ],
+      "dark_events": 0,
+      "peer_dark_events": 0,
+      "session_reopened": 0
+    },
+    "b1": {
+      "ice_pairs": [
+        {
+          "local": "srflx",
+          "remote": "host",
+          "rtt_ms": 46
+        }
+      ],
+      "dark_events": 0,
+      "peer_dark_events": 0,
+      "session_reopened": 0
+    },
+    "c1": {
+      "ice_pairs": [
+        {
+          "local": "srflx",
+          "remote": "host",
+          "rtt_ms": 48
+        }
+      ],
+      "dark_events": 0,
+      "peer_dark_events": 0,
+      "session_reopened": 0
+    },
+    "a2": {
+      "ice_pairs": [
+        {
+          "local": "srflx",
+          "remote": "host",
+          "rtt_ms": 45
+        }
+      ],
+      "dark_events": 0,
+      "peer_dark_events": 0,
+      "session_reopened": 0
+    },
+    "c2": {
+      "ice_pairs": [
+        {
+          "local": "srflx",
+          "remote": "host",
+          "rtt_ms": 45
+        }
+      ],
+      "dark_events": 0,
+      "peer_dark_events": 0,
+      "session_reopened": 0
+    },
+    "a3": {
+      "ice_pairs": [
+        {
+          "local": "srflx",
+          "remote": "host",
+          "rtt_ms": 48
+        }
+      ],
+      "dark_events": 0,
+      "peer_dark_events": 0,
+      "session_reopened": 0
+    }
+  },
+  "production": "MainPID=851087\nNRestarts=0\nActiveState=active\n"
+}

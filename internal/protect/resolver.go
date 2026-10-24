@@ -208,13 +208,14 @@ func (r *Resolver) current() (*serverRing, *net.Resolver) {
 }
 
 // LookupIP implements Lookup. network is "ip", "ip4" or "ip6".
+// ai-generated: resolve only the requested family while retaining resolver fallback.
 func (r *Resolver) LookupIP(ctx context.Context, network, host string) ([]net.IP, error) {
-	v6, v4, err := r.LookupFamilies(ctx, host)
+	v6, v4, err := r.lookupNetwork(ctx, network, host)
 	if err != nil {
 		return nil, err
 	}
 	switch network {
-	case "ip4":
+	case ipNetwork4:
 		return v4, nil
 	case "ip6":
 		return v6, nil
@@ -230,20 +231,27 @@ func (r *Resolver) LookupIP(ctx context.Context, network, host string) ([]net.IP
 // address at all the host's own resolver is asked, on a budget of its own.
 // Servers that have just proven dark are asked last, since paying their
 // silence again on every lookup buys nothing.
+// ai-generated: delegate the dual-stack API to the shared bounded lookup.
 func (r *Resolver) LookupFamilies(ctx context.Context, host string) ([]net.IP, []net.IP, error) {
+	return r.lookupNetwork(ctx, "ip", host)
+}
+
+// lookupNetwork retains configured/host priority for both single and dual-family lookups.
+// ai-generated: share resolver ordering and budgets without querying an unused family.
+func (r *Resolver) lookupNetwork(ctx context.Context, network, host string) ([]net.IP, []net.IP, error) {
 	if v6, v4, ok := literalFamilies(host); ok {
 		return v6, v4, nil
 	}
 	ring, system := r.current()
 	if ring == nil {
-		return r.lookupHostOnly(ctx, system, host)
+		return r.lookupHostOnly(ctx, system, network, host)
 	}
 	configured := ring.resolver()
 	dark := system != nil && ring.dark(r.nowFunc())
 
 	var configuredErr, systemErr error
 	if !dark {
-		v6, v4, err := lookupBounded(ctx, configured, host, configuredLookupBudget)
+		v6, v4, err := lookupBounded(ctx, configured, network, host, configuredLookupBudget)
 		if len(v6) > 0 || len(v4) > 0 {
 			return v6, v4, nil
 		}
@@ -252,7 +260,7 @@ func (r *Resolver) LookupFamilies(ctx context.Context, host string) ([]net.IP, [
 		}
 		configuredErr = err
 	}
-	v6, v4, err := lookupBounded(ctx, system, host, systemLookupBudget)
+	v6, v4, err := lookupBounded(ctx, system, network, host, systemLookupBudget)
 	if len(v6) > 0 || len(v4) > 0 {
 		return v6, v4, nil
 	}
@@ -260,7 +268,7 @@ func (r *Resolver) LookupFamilies(ctx context.Context, host string) ([]net.IP, [
 	if dark {
 		// The host's resolver had nothing either, so the configured servers
 		// get their turn after all, on the usual budget.
-		v6, v4, err = lookupBounded(ctx, configured, host, configuredLookupBudget)
+		v6, v4, err = lookupBounded(ctx, configured, network, host, configuredLookupBudget)
 		if len(v6) > 0 || len(v4) > 0 {
 			return v6, v4, nil
 		}
@@ -269,11 +277,14 @@ func (r *Resolver) LookupFamilies(ctx context.Context, host string) ([]net.IP, [
 	return nil, nil, &lookupError{host: host, configured: configuredErr, system: systemErr}
 }
 
-func (r *Resolver) lookupHostOnly(ctx context.Context, system *net.Resolver, host string) ([]net.IP, []net.IP, error) {
+// ai-generated: preserve the family filter when only the host resolver is available.
+func (r *Resolver) lookupHostOnly(
+	ctx context.Context, system *net.Resolver, network, host string,
+) ([]net.IP, []net.IP, error) {
 	if system == nil {
 		return nil, nil, &lookupError{host: host, configured: ErrDNSUnreachable}
 	}
-	v6, v4, err := lookupBounded(ctx, system, host, systemLookupBudget)
+	v6, v4, err := lookupBounded(ctx, system, network, host, systemLookupBudget)
 	if len(v6) > 0 || len(v4) > 0 {
 		return v6, v4, nil
 	}
@@ -559,12 +570,20 @@ func (e *lookupError) Unwrap() []error {
 	return errs
 }
 
-// lookupBounded is lookupBoth on a budget of its own within ctx.
+// lookupBounded resolves the requested families on a budget within ctx.
+// ai-generated: skip the unused family without changing dual-stack resolution.
 func lookupBounded(
-	ctx context.Context, r *net.Resolver, host string, budget time.Duration,
+	ctx context.Context, r *net.Resolver, network, host string, budget time.Duration,
 ) ([]net.IP, []net.IP, error) {
 	bounded, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
+	if network == ipNetwork4 || network == "ip6" {
+		ips, err := lookupFamily(bounded, r, network, host)
+		if network == ipNetwork4 {
+			return nil, ips, err
+		}
+		return ips, nil, err
+	}
 	return lookupBoth(bounded, r, host)
 }
 

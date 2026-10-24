@@ -1,0 +1,1082 @@
+[
+  {
+    "label": "opt2-a1",
+    "phase": "ready",
+    "attempts": 1,
+    "success": 1,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.632512,
+      "min": 0.632512,
+      "max": 0.632512
+    },
+    "total_s": {
+      "median": 0.632573,
+      "min": 0.632573,
+      "max": 0.632573
+    },
+    "mbps": {
+      "median": 0.20720454398148513,
+      "min": 0.20720454398148513,
+      "max": 0.20720454398148513
+    }
+  },
+  {
+    "label": "opt2-a1",
+    "phase": "idle-small",
+    "attempts": 12,
+    "success": 12,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.7007075,
+      "min": 0.669751,
+      "max": 0.852371
+    },
+    "total_s": {
+      "median": 0.7007865,
+      "min": 0.669845,
+      "max": 0.852472
+    },
+    "mbps": {
+      "median": 0.18706463316981992,
+      "min": 0.15375519665162024,
+      "max": 0.19567511887078354
+    }
+  },
+  {
+    "label": "opt2-a1",
+    "phase": "download",
+    "attempts": 3,
+    "success": 3,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.711648,
+      "min": 0.69414,
+      "max": 0.735332
+    },
+    "total_s": {
+      "median": 3.051024,
+      "min": 3.032542,
+      "max": 3.530957
+    },
+    "mbps": {
+      "median": 10.997760751800051,
+      "min": 9.502928526175765,
+      "max": 11.064787231306278
+    }
+  },
+  {
+    "label": "opt2-a1",
+    "phase": "upload",
+    "attempts": 3,
+    "success": 3,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.266296,
+      "min": 1.224151,
+      "max": 1.725
+    },
+    "total_s": {
+      "median": 1.26632,
+      "min": 1.224179,
+      "max": 1.725027
+    },
+    "mbps": {
+      "median": 6.6243982563649,
+      "min": 4.862885044697851,
+      "max": 6.852435795745557
+    }
+  },
+  {
+    "label": "opt2-a1",
+    "phase": "down-small",
+    "attempts": 23,
+    "success": 23,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.449162,
+      "min": 1.207247,
+      "max": 1.978703
+    },
+    "total_s": {
+      "median": 1.492345,
+      "min": 1.207323,
+      "max": 2.000588
+    },
+    "mbps": {
+      "median": 0.08782955683839863,
+      "min": 0.06551673807900477,
+      "max": 0.10856415391738583
+    }
+  },
+  {
+    "label": "opt2-a1",
+    "phase": "down-bulk",
+    "attempts": 17,
+    "success": 17,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.394487,
+      "min": 0.744874,
+      "max": 1.55323
+    },
+    "total_s": {
+      "median": 5.051802,
+      "min": 4.191162,
+      "max": 6.001992
+    },
+    "mbps": {
+      "median": 6.642071878509886,
+      "min": 5.5905492709753695,
+      "max": 8.005997382110259
+    },
+    "aggregate_span_s": 44.09997844696045,
+    "aggregate_mbps": 12.934821378338247
+  },
+  {
+    "label": "opt2-a1",
+    "phase": "up-bulk",
+    "attempts": 26,
+    "success": 26,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 2.3440855000000003,
+      "min": 1.201956,
+      "max": 4.265515
+    },
+    "total_s": {
+      "median": 2.3441015,
+      "min": 1.201977,
+      "max": 4.265532
+    },
+    "mbps": {
+      "median": 3.5789313848204856,
+      "min": 1.9666029934835796,
+      "max": 6.979008749751451
+    },
+    "aggregate_span_s": 31.543667316436768,
+    "aggregate_mbps": 6.914345304623173
+  },
+  {
+    "label": "opt2-a1",
+    "phase": "up-small",
+    "attempts": 12,
+    "success": 12,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 2.2005425,
+      "min": 1.150528,
+      "max": 3.870607
+    },
+    "total_s": {
+      "median": 2.2006065,
+      "min": 1.150586,
+      "max": 3.870706
+    },
+    "mbps": {
+      "median": 0.05957355212325947,
+      "min": 0.03386255633985118,
+      "max": 0.113917603725406
+    }
+  },
+  {
+    "label": "opt2-b1",
+    "phase": "ready",
+    "attempts": 1,
+    "success": 1,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.695385,
+      "min": 0.695385,
+      "max": 0.695385
+    },
+    "total_s": {
+      "median": 0.695471,
+      "min": 0.695471,
+      "max": 0.695471
+    },
+    "mbps": {
+      "median": 0.18846508337515153,
+      "min": 0.18846508337515153,
+      "max": 0.18846508337515153
+    }
+  },
+  {
+    "label": "opt2-b1",
+    "phase": "idle-small",
+    "attempts": 12,
+    "success": 12,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.7013135,
+      "min": 0.671335,
+      "max": 0.796641
+    },
+    "total_s": {
+      "median": 0.7014119999999999,
+      "min": 0.671428,
+      "max": 0.796765
+    },
+    "mbps": {
+      "median": 0.18689170758489465,
+      "min": 0.16450521797518716,
+      "max": 0.1952137831606665
+    }
+  },
+  {
+    "label": "opt2-b1",
+    "phase": "download",
+    "attempts": 3,
+    "success": 3,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.733889,
+      "min": 0.71242,
+      "max": 0.734115
+    },
+    "total_s": {
+      "median": 2.4527,
+      "min": 2.213177,
+      "max": 2.590136
+    },
+    "mbps": {
+      "median": 13.680609940066049,
+      "min": 12.95469890384134,
+      "max": 15.161205814085362
+    }
+  },
+  {
+    "label": "opt2-b1",
+    "phase": "upload",
+    "attempts": 3,
+    "success": 3,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.301846,
+      "min": 1.284768,
+      "max": 1.72797
+    },
+    "total_s": {
+      "median": 1.301874,
+      "min": 1.284786,
+      "max": 1.727987
+    },
+    "mbps": {
+      "median": 6.44348685049398,
+      "min": 4.854555040055279,
+      "max": 6.5291869618753635
+    }
+  },
+  {
+    "label": "opt2-b1",
+    "phase": "down-small",
+    "attempts": 18,
+    "success": 18,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.8754795,
+      "min": 1.293758,
+      "max": 2.925382
+    },
+    "total_s": {
+      "median": 1.8756249999999999,
+      "min": 1.293859,
+      "max": 2.925453
+    },
+    "mbps": {
+      "median": 0.06992731442760146,
+      "min": 0.0448040012948422,
+      "max": 0.10130315590802397
+    }
+  },
+  {
+    "label": "opt2-b1",
+    "phase": "down-bulk",
+    "attempts": 21,
+    "success": 21,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.573796,
+      "min": 0.746076,
+      "max": 2.962851
+    },
+    "total_s": {
+      "median": 4.110036,
+      "min": 3.512204,
+      "max": 5.076886
+    },
+    "mbps": {
+      "median": 8.164023867430846,
+      "min": 6.609254570616713,
+      "max": 9.553668294894033
+    },
+    "aggregate_span_s": 43.78249144554138,
+    "aggregate_mbps": 16.09417483416782
+  },
+  {
+    "label": "opt2-b1",
+    "phase": "up-bulk",
+    "attempts": 29,
+    "success": 29,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.978808,
+      "min": 1.208429,
+      "max": 4.157377
+    },
+    "total_s": {
+      "median": 1.978824,
+      "min": 1.208458,
+      "max": 4.157394
+    },
+    "mbps": {
+      "median": 4.239188528135903,
+      "min": 2.0177563156150224,
+      "max": 6.941580096287996
+    },
+    "aggregate_span_s": 32.94301676750183,
+    "aggregate_mbps": 7.384558424533378
+  },
+  {
+    "label": "opt2-b1",
+    "phase": "up-small",
+    "attempts": 14,
+    "success": 14,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.789631,
+      "min": 1.029368,
+      "max": 3.529813
+    },
+    "total_s": {
+      "median": 1.7897205,
+      "min": 1.029432,
+      "max": 3.529912
+    },
+    "mbps": {
+      "median": 0.07345626149123177,
+      "min": 0.037131803852334,
+      "max": 0.1273245828767709
+    }
+  },
+  {
+    "label": "opt2-c1",
+    "phase": "ready",
+    "attempts": 1,
+    "success": 1,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.676185,
+      "min": 0.676185,
+      "max": 0.676185
+    },
+    "total_s": {
+      "median": 0.676276,
+      "min": 0.676276,
+      "max": 0.676276
+    },
+    "mbps": {
+      "median": 0.1938143598175893,
+      "min": 0.1938143598175893,
+      "max": 0.1938143598175893
+    }
+  },
+  {
+    "label": "opt2-c1",
+    "phase": "idle-small",
+    "attempts": 12,
+    "success": 12,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.692412,
+      "min": 0.671731,
+      "max": 0.893205
+    },
+    "total_s": {
+      "median": 0.6925105,
+      "min": 0.671822,
+      "max": 0.893284
+    },
+    "mbps": {
+      "median": 0.1892710261533931,
+      "min": 0.1467304910868212,
+      "max": 0.1950992971352531
+    }
+  },
+  {
+    "label": "opt2-c1",
+    "phase": "download",
+    "attempts": 3,
+    "success": 3,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.67319,
+      "min": 0.651195,
+      "max": 0.6906
+    },
+    "total_s": {
+      "median": 2.250735,
+      "min": 2.230239,
+      "max": 2.891784
+    },
+    "mbps": {
+      "median": 14.908210873336932,
+      "min": 11.603367333106485,
+      "max": 15.045218023718535
+    }
+  },
+  {
+    "label": "opt2-c1",
+    "phase": "upload",
+    "attempts": 3,
+    "success": 3,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.18644,
+      "min": 1.167142,
+      "max": 1.888719
+    },
+    "total_s": {
+      "median": 1.186468,
+      "min": 1.167169,
+      "max": 1.888745
+    },
+    "mbps": {
+      "median": 7.070235354008704,
+      "min": 4.4413660922993845,
+      "max": 7.187140851067841
+    }
+  },
+  {
+    "label": "opt2-c1",
+    "phase": "down-small",
+    "attempts": 22,
+    "success": 22,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.5467810000000002,
+      "min": 0.670705,
+      "max": 2.629694
+    },
+    "total_s": {
+      "median": 1.5604315,
+      "min": 0.670795,
+      "max": 2.6298
+    },
+    "mbps": {
+      "median": 0.08399947219261938,
+      "min": 0.04984105255152483,
+      "max": 0.19539799789801654
+    }
+  },
+  {
+    "label": "opt2-c1",
+    "phase": "down-bulk",
+    "attempts": 20,
+    "success": 20,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.204366,
+      "min": 0.698284,
+      "max": 2.346558
+    },
+    "total_s": {
+      "median": 4.295266,
+      "min": 3.496373,
+      "max": 4.810872
+    },
+    "mbps": {
+      "median": 7.812018539366256,
+      "min": 6.974708950892895,
+      "max": 9.596925728462036
+    },
+    "aggregate_span_s": 43.22044062614441,
+    "aggregate_mbps": 15.527112409725245
+  },
+  {
+    "label": "opt2-c1",
+    "phase": "up-bulk",
+    "attempts": 26,
+    "success": 26,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 2.2685065,
+      "min": 1.795091,
+      "max": 3.863882
+    },
+    "total_s": {
+      "median": 2.268534,
+      "min": 1.795107,
+      "max": 3.863895
+    },
+    "mbps": {
+      "median": 3.6988275550003653,
+      "min": 2.171023798524546,
+      "max": 4.673040659971802
+    },
+    "aggregate_span_s": 31.362547397613525,
+    "aggregate_mbps": 6.954275914991401
+  },
+  {
+    "label": "opt2-c1",
+    "phase": "up-small",
+    "attempts": 13,
+    "success": 13,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 2.191514,
+      "min": 1.410073,
+      "max": 3.465873
+    },
+    "total_s": {
+      "median": 2.191577,
+      "min": 1.410164,
+      "max": 3.46601
+    },
+    "mbps": {
+      "median": 0.059807161692242615,
+      "min": 0.03781639406695307,
+      "max": 0.09294805426886518
+    }
+  },
+  {
+    "label": "opt2-a2",
+    "phase": "ready",
+    "attempts": 1,
+    "success": 1,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.661652,
+      "min": 0.661652,
+      "max": 0.661652
+    },
+    "total_s": {
+      "median": 0.661715,
+      "min": 0.661715,
+      "max": 0.661715
+    },
+    "mbps": {
+      "median": 0.1980792335068723,
+      "min": 0.1980792335068723,
+      "max": 0.1980792335068723
+    }
+  },
+  {
+    "label": "opt2-a2",
+    "phase": "idle-small",
+    "attempts": 12,
+    "success": 12,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.6812245,
+      "min": 0.652277,
+      "max": 0.752122
+    },
+    "total_s": {
+      "median": 0.6813115000000001,
+      "min": 0.65237,
+      "max": 0.752187
+    },
+    "mbps": {
+      "median": 0.19240346691636168,
+      "min": 0.17425454042678215,
+      "max": 0.2009166577249107
+    }
+  },
+  {
+    "label": "opt2-a2",
+    "phase": "download",
+    "attempts": 3,
+    "success": 3,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.651739,
+      "min": 0.639808,
+      "max": 0.691336
+    },
+    "total_s": {
+      "median": 3.091594,
+      "min": 3.010908,
+      "max": 3.214941
+    },
+    "mbps": {
+      "median": 10.853440652297811,
+      "min": 10.437028859938643,
+      "max": 11.144290028124406
+    }
+  },
+  {
+    "label": "opt2-a2",
+    "phase": "upload",
+    "attempts": 3,
+    "success": 3,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.42835,
+      "min": 1.204848,
+      "max": 1.687945
+    },
+    "total_s": {
+      "median": 1.428378,
+      "min": 1.204866,
+      "max": 1.687971
+    },
+    "mbps": {
+      "median": 5.872820779933604,
+      "min": 4.969639881253884,
+      "max": 6.962274642989345
+    }
+  },
+  {
+    "label": "opt2-a2",
+    "phase": "down-small",
+    "attempts": 23,
+    "success": 23,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.453601,
+      "min": 1.247571,
+      "max": 1.969263
+    },
+    "total_s": {
+      "median": 1.4711,
+      "min": 1.247664,
+      "max": 1.969353
+    },
+    "mbps": {
+      "median": 0.0890979539120386,
+      "min": 0.06655586885642138,
+      "max": 0.1050539247746188
+    }
+  },
+  {
+    "label": "opt2-a2",
+    "phase": "down-bulk",
+    "attempts": 16,
+    "success": 16,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.3832849999999999,
+      "min": 0.660166,
+      "max": 1.83073
+    },
+    "total_s": {
+      "median": 5.0235515,
+      "min": 4.792113,
+      "max": 5.77095
+    },
+    "mbps": {
+      "median": 6.679448272941054,
+      "min": 5.8143688647449725,
+      "max": 7.002011847383399
+    },
+    "aggregate_span_s": 42.1998610496521,
+    "aggregate_mbps": 12.722101415649709
+  },
+  {
+    "label": "opt2-a2",
+    "phase": "up-bulk",
+    "attempts": 28,
+    "success": 28,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 2.1365005000000004,
+      "min": 1.718668,
+      "max": 3.785382
+    },
+    "total_s": {
+      "median": 2.136523,
+      "min": 1.718685,
+      "max": 3.785425
+    },
+    "mbps": {
+      "median": 3.926364218352581,
+      "min": 2.216028054974012,
+      "max": 4.880829238633025
+    },
+    "aggregate_span_s": 32.919269323349,
+    "aggregate_mbps": 7.135061890131427
+  },
+  {
+    "label": "opt2-a2",
+    "phase": "up-small",
+    "attempts": 13,
+    "success": 13,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 2.010532,
+      "min": 1.350081,
+      "max": 3.813304
+    },
+    "total_s": {
+      "median": 2.010625,
+      "min": 1.350172,
+      "max": 3.813399
+    },
+    "mbps": {
+      "median": 0.06518967982592477,
+      "min": 0.03437143608628418,
+      "max": 0.09707800191383024
+    }
+  },
+  {
+    "label": "opt2-c2",
+    "phase": "ready",
+    "attempts": 1,
+    "success": 1,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.668647,
+      "min": 0.668647,
+      "max": 0.668647
+    },
+    "total_s": {
+      "median": 0.668748,
+      "min": 0.668748,
+      "max": 0.668748
+    },
+    "mbps": {
+      "median": 0.19599610017525285,
+      "min": 0.19599610017525285,
+      "max": 0.19599610017525285
+    }
+  },
+  {
+    "label": "opt2-c2",
+    "phase": "idle-small",
+    "attempts": 12,
+    "success": 12,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.6780295000000001,
+      "min": 0.640407,
+      "max": 0.732975
+    },
+    "total_s": {
+      "median": 0.678107,
+      "min": 0.640505,
+      "max": 0.733085
+    },
+    "mbps": {
+      "median": 0.19331675152418082,
+      "min": 0.17879509197432766,
+      "max": 0.204638527411964
+    }
+  },
+  {
+    "label": "opt2-c2",
+    "phase": "download",
+    "attempts": 3,
+    "success": 3,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.63197,
+      "min": 0.631838,
+      "max": 0.753292
+    },
+    "total_s": {
+      "median": 2.653317,
+      "min": 2.271046,
+      "max": 2.771648
+    },
+    "mbps": {
+      "median": 12.646220560905464,
+      "min": 12.106310758076063,
+      "max": 14.774879945188252
+    }
+  },
+  {
+    "label": "opt2-c2",
+    "phase": "upload",
+    "attempts": 3,
+    "success": 3,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.243334,
+      "min": 1.228521,
+      "max": 1.646126
+    },
+    "total_s": {
+      "median": 1.243368,
+      "min": 1.228549,
+      "max": 1.64615
+    },
+    "mbps": {
+      "median": 6.746681593864406,
+      "min": 5.095895270783343,
+      "max": 6.828061396004555
+    }
+  },
+  {
+    "label": "opt2-c2",
+    "phase": "down-small",
+    "attempts": 22,
+    "success": 22,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.5489005,
+      "min": 0.986651,
+      "max": 2.590435
+    },
+    "total_s": {
+      "median": 1.5528345,
+      "min": 0.986748,
+      "max": 2.590541
+    },
+    "mbps": {
+      "median": 0.08440843806976783,
+      "min": 0.05059638121921251,
+      "max": 0.13283229355418
+    }
+  },
+  {
+    "label": "opt2-c2",
+    "phase": "down-bulk",
+    "attempts": 19,
+    "success": 19,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.430608,
+      "min": 0.702891,
+      "max": 2.067028
+    },
+    "total_s": {
+      "median": 4.5975,
+      "min": 3.474827,
+      "max": 5.249259
+    },
+    "mbps": {
+      "median": 7.298408265361609,
+      "min": 6.392222597513286,
+      "max": 9.65643239217377
+    },
+    "aggregate_span_s": 42.91943693161011,
+    "aggregate_mbps": 14.854207174615958
+  },
+  {
+    "label": "opt2-c2",
+    "phase": "up-bulk",
+    "attempts": 28,
+    "success": 28,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.9355090000000001,
+      "min": 1.18663,
+      "max": 3.89218
+    },
+    "total_s": {
+      "median": 1.9355355,
+      "min": 1.18666,
+      "max": 3.892202
+    },
+    "mbps": {
+      "median": 4.3370343346218725,
+      "min": 2.155234491940552,
+      "max": 7.069091399389883
+    },
+    "aggregate_span_s": 31.543987035751343,
+    "aggregate_mbps": 7.446142547985149
+  },
+  {
+    "label": "opt2-c2",
+    "phase": "up-small",
+    "attempts": 13,
+    "success": 13,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 2.012436,
+      "min": 1.171344,
+      "max": 3.428663
+    },
+    "total_s": {
+      "median": 2.01253,
+      "min": 1.171435,
+      "max": 3.428756
+    },
+    "mbps": {
+      "median": 0.06512797324760376,
+      "min": 0.0382272754316726,
+      "max": 0.11189011767618348
+    }
+  },
+  {
+    "label": "opt2-a3",
+    "phase": "ready",
+    "attempts": 1,
+    "success": 1,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.696223,
+      "min": 0.696223,
+      "max": 0.696223
+    },
+    "total_s": {
+      "median": 0.69632,
+      "min": 0.69632,
+      "max": 0.69632
+    },
+    "mbps": {
+      "median": 0.18823529411764706,
+      "min": 0.18823529411764706,
+      "max": 0.18823529411764706
+    }
+  },
+  {
+    "label": "opt2-a3",
+    "phase": "idle-small",
+    "attempts": 12,
+    "success": 12,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.6913705,
+      "min": 0.652304,
+      "max": 0.710369
+    },
+    "total_s": {
+      "median": 0.691449,
+      "min": 0.652417,
+      "max": 0.710463
+    },
+    "mbps": {
+      "median": 0.18956136190336736,
+      "min": 0.18448814364717095,
+      "max": 0.20090218372605248
+    }
+  },
+  {
+    "label": "opt2-a3",
+    "phase": "download",
+    "attempts": 3,
+    "success": 3,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.716712,
+      "min": 0.693897,
+      "max": 0.810826
+    },
+    "total_s": {
+      "median": 3.193258,
+      "min": 3.051515,
+      "max": 3.510688
+    },
+    "mbps": {
+      "median": 10.507898829346077,
+      "min": 9.557793799961717,
+      "max": 10.99599117159837
+    }
+  },
+  {
+    "label": "opt2-a3",
+    "phase": "upload",
+    "attempts": 3,
+    "success": 3,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.467655,
+      "min": 1.206006,
+      "max": 1.965215
+    },
+    "total_s": {
+      "median": 1.467682,
+      "min": 1.206034,
+      "max": 1.965243
+    },
+    "mbps": {
+      "median": 5.7155487360340995,
+      "min": 4.268483846526867,
+      "max": 6.955531933593912
+    }
+  },
+  {
+    "label": "opt2-a3",
+    "phase": "down-small",
+    "attempts": 24,
+    "success": 24,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 1.4313475,
+      "min": 0.751039,
+      "max": 2.114014
+    },
+    "total_s": {
+      "median": 1.463505,
+      "min": 0.751139,
+      "max": 2.114075
+    },
+    "mbps": {
+      "median": 0.08956491067022879,
+      "min": 0.061999692536925124,
+      "max": 0.17449766288263557
+    }
+  },
+  {
+    "label": "opt2-a3",
+    "phase": "down-bulk",
+    "attempts": 16,
+    "success": 16,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 0.909219,
+      "min": 0.673733,
+      "max": 1.594972
+    },
+    "total_s": {
+      "median": 5.1729585,
+      "min": 4.411792,
+      "max": 6.011115
+    },
+    "mbps": {
+      "median": 6.4865071237585585,
+      "min": 5.582064558738271,
+      "max": 7.605624199871617
+    },
+    "aggregate_span_s": 42.62199020385742,
+    "aggregate_mbps": 12.596101435718774
+  },
+  {
+    "label": "opt2-a3",
+    "phase": "up-bulk",
+    "attempts": 26,
+    "success": 26,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 2.244077,
+      "min": 1.205531,
+      "max": 3.883208
+    },
+    "total_s": {
+      "median": 2.2441060000000004,
+      "min": 1.205549,
+      "max": 3.883225
+    },
+    "mbps": {
+      "median": 3.7391629467147625,
+      "min": 2.1602168300832427,
+      "max": 6.958330188154941
+    },
+    "aggregate_span_s": 31.478914976119995,
+    "aggregate_mbps": 6.928568159526916
+  },
+  {
+    "label": "opt2-a3",
+    "phase": "up-small",
+    "attempts": 12,
+    "success": 12,
+    "failures": 0,
+    "ttfb_s": {
+      "median": 2.321717,
+      "min": 1.146012,
+      "max": 3.626686
+    },
+    "total_s": {
+      "median": 2.3218015,
+      "min": 1.146075,
+      "max": 3.626785
+    },
+    "mbps": {
+      "median": 0.056453682339557346,
+      "min": 0.03613999727030966,
+      "max": 0.11436598826429335
+    }
+  }
+]
