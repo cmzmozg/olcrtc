@@ -122,6 +122,7 @@ const (
 // it). It is global so all Conn instances share the same hot cache -
 // most clients in the same process talk to a handful of peers, and
 // per-Conn pools fragment the warm set unnecessarily.
+// ai-generated: send paths with a copying transport also borrow it per record.
 var frameBufPool = sync.Pool{ //nolint:gochecknoglobals // intentional process-wide buffer pool
 	New: func() any {
 		b := make([]byte, 0, pooledFrameCap)
@@ -784,9 +785,20 @@ func (c *Conn) writeRecord(p []byte) (int, error) {
 	if err := c.awaitLink(); err != nil {
 		return 0, err
 	}
-	enc, err := c.group.Pinned().Keys.SealInto(nil, p, c.aad)
+	// ai-generated: borrow ciphertext scratch only for synchronous copying sends.
+	var scratch *[]byte
+	var dst []byte
+	if sender, ok := c.ln.(transport.CopyingSender); ok && sender.CopiesOnSend() {
+		scratch = acquireFrameBuf()
+		defer releaseFrameBuf(scratch)
+		dst = (*scratch)[:0]
+	}
+	enc, err := c.group.Pinned().Keys.SealInto(dst, p, c.aad)
 	if err != nil {
 		return 0, fmt.Errorf("encrypt: %w", err)
+	}
+	if scratch != nil {
+		*scratch = enc
 	}
 	if err := c.send(enc); err != nil {
 		return 0, fmt.Errorf("send: %w", err)

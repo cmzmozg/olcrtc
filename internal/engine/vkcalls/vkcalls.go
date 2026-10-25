@@ -69,14 +69,19 @@ type Session struct {
 
 	engine.Reconnector
 
-	mu           sync.Mutex
-	gen          *generation
-	encodings    []webrtc.RTPEncodingParameters // EXPERIMENT: the publish encodings
-	closed       atomic.Bool
-	reconnecting atomic.Bool
-	closeCh      chan struct{}
-	closeOnce    sync.Once
-	endOnce      sync.Once
+	mu  sync.Mutex
+	gen *generation
+	// ai-generated: serialize joins and let Close cancel an unfinished attempt.
+	connectGate    chan struct{}
+	attempt        *connectAttempt
+	connectTimeout time.Duration                  // test override of the shared join budget
+	recruitDelay   time.Duration                  // test override of the guest spacing
+	encodings      []webrtc.RTPEncodingParameters // EXPERIMENT: the publish encodings
+	closed         atomic.Bool
+	reconnecting   atomic.Bool
+	closeCh        chan struct{}
+	closeOnce      sync.Once
+	endOnce        sync.Once
 }
 
 // generation bundles everything one connection attempt owns, so closing it
@@ -98,12 +103,14 @@ type generation struct {
 	connected    chan struct{}
 	done         chan struct{}
 	doneOnce     sync.Once
+	workers      sync.WaitGroup // ai-generated: join the generation's owned loops on teardown.
 }
 
 // isDone says whether this attempt was torn down: a failure it raised after
 // that says nothing about the session (see reconnectAttempt).
 
 // New builds a VK Calls session from provider credentials.
+// ai-generated: initialize cancelable join ownership beside the session lifetime.
 func New(_ context.Context, cfg engine.Config) (engine.Session, error) {
 	if cfg.URL == "" {
 		return nil, ErrNoEndpoint
@@ -111,7 +118,7 @@ func New(_ context.Context, cfg engine.Config) (engine.Session, error) {
 	s := &Session{
 		cfg: cfg, endpoint: cfg.URL,
 		peerID: cfg.Extra["peer_id_hint"], iceJSON: cfg.Extra["ice_servers"],
-		closeCh: make(chan struct{}),
+		closeCh: make(chan struct{}), connectGate: make(chan struct{}, 1),
 	}
 	s.Configure(engine.ReconnectorConfig{
 		MaxAttempts: maxReconnects,
@@ -134,9 +141,9 @@ func (s *Session) SetVideoTrackHandler(cb func(*webrtc.TrackRemote, *webrtc.RTPR
 	s.video.SetVideoTrackHandler(cb)
 }
 
-// Connect joins the conversation and brings the bundled peer connection to
-// the connected state with an active media subscription.
-func (s *Session) Connect(ctx context.Context) error {
+// connect joins one attempt; Connect and rejoin own its common deadline.
+// ai-generated: extracted from Connect so both entry points share one budget.
+func (s *Session) connect(ctx context.Context) error {
 	if s.closed.Load() {
 		return ErrSessionClosed
 	}
@@ -147,20 +154,23 @@ func (s *Session) Connect(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	// ai-generated: cancellation also interrupts a signaling write in progress.
+	stop := context.AfterFunc(ctx, signal.shutdown)
+	defer stop()
 	connection, err := s.waitConnected(ctx, signal)
 	if err != nil {
-		signal.close()
+		signal.closeContext(ctx)
 		return err
 	}
 	if _, err := signal.command(ctx, "allocate-consumer",
 		map[string]any{"capabilities": referenceCapabilities()}); err != nil {
-		signal.close()
+		signal.closeContext(ctx)
 		return err
 	}
 	if _, err := signal.command(ctx, "update-media-modifiers", map[string]any{
 		"mediaModifiers": map[string]any{"denoise": true, "denoiseAnn": true},
 	}); err != nil {
-		signal.close()
+		signal.closeContext(ctx)
 		return err
 	}
 
@@ -173,7 +183,7 @@ func (s *Session) Connect(ctx context.Context) error {
 	}
 	offerNote := waitOffer(ctx, signal)
 	if offerNote.Description == "" {
-		signal.close()
+		signal.closeContext(ctx)
 		return ErrOfferTimeout
 	}
 	gen.sessionID = offerNote.SessionID
@@ -182,27 +192,19 @@ func (s *Session) Connect(ctx context.Context) error {
 			"isScreenSharingEnabled": false, "isFastScreenSharingEnabled": false,
 			"isAudioSharingEnabled": false, "isAnimojiEnabled": true},
 	}); err != nil {
-		signal.close()
+		signal.closeContext(ctx)
 		return err
 	}
 	if err := s.negotiate(ctx, gen, offerNote.Description); err != nil {
-		gen.teardown()
+		gen.teardownContext(ctx)
 		return err
 	}
 
-	s.mu.Lock()
-	s.gen = gen
-	s.mu.Unlock()
-	go gen.perfStatLoop()
-	go s.run(gen, connection) //nolint:contextcheck // the session owns its post-connect lifetime
-	return nil
+	return s.installGeneration(ctx, gen, connection)
 }
 
-// waitConnected waits for the connection notification and, when the room
-// opened outside SERVER topology, keeps waiting while recruiting the
-// signaling-only guests that flip a fresh room - two participants alone
-// never switch it, a third simultaneous one does, and SERVER sticks after
-// that (see recruitGuests).
+// waitConnected owns the guests until SERVER arrives or recruiting fails.
+// ai-generated: cancel and join recruiting, propagating exhausted auth failures.
 func (s *Session) waitConnected(ctx context.Context, signal *signalingClient) (notification, error) {
 	connection, err := signal.awaitJoin(ctx)
 	if err != nil {
@@ -212,10 +214,19 @@ func (s *Session) waitConnected(ctx context.Context, signal *signalingClient) (n
 	if !direct {
 		return connection, nil
 	}
-	flipDone := make(chan struct{})
-	go s.recruitGuests(ctx, flipDone)
-	defer close(flipDone)
-	if err := signal.waitServerTopology(ctx, connection); err != nil {
+	recruitCtx, cancel := context.WithCancelCause(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if err := s.recruitGuests(recruitCtx); err != nil {
+			cancel(err)
+		}
+	}()
+	defer func() {
+		cancel(context.Canceled)
+		<-done
+	}()
+	if err := signal.waitServerTopology(recruitCtx, connection); err != nil {
 		return notification{}, err
 	}
 	return connection, nil
@@ -224,6 +235,7 @@ func (s *Session) waitConnected(ctx context.Context, signal *signalingClient) (n
 // negotiate answers one producer offer: the bundled peer connection mirrors
 // the offer's codecs, the shaped answer passes the transport gate and
 // accept-producer completes the session.
+// ai-generated: own RTCP readers and cancel the delayed ICE statistics log.
 func (s *Session) negotiate(ctx context.Context, gen *generation, offer string) error { //nolint:gocyclo,cyclop
 	api, err := newWebRTCAPI(offer, s.cfg, s.cfg.Resolver)
 	if err != nil {
@@ -264,7 +276,12 @@ func (s *Session) negotiate(ctx context.Context, gen *generation, offer string) 
 			return
 		}
 		senders[track.ID()] = sender
-		go drainRTCP(sender)
+		// ai-generated: the generation also owns its RTCP readers.
+		gen.workers.Add(1)
+		go func() {
+			defer gen.workers.Done()
+			drainRTCP(sender)
+		}()
 	})
 	s.mu.Lock()
 	s.encodings = nil
@@ -293,7 +310,7 @@ func (s *Session) negotiate(ctx context.Context, gen *generation, offer string) 
 			case <-gen.connected:
 			default:
 				close(gen.connected)
-				go logICEPair(pc)
+				go logICEPair(pc, gen.done)
 			}
 		case webrtc.PeerConnectionStateFailed, webrtc.PeerConnectionStateClosed:
 			s.reconnectAttempt(gen)
@@ -310,8 +327,15 @@ func (s *Session) negotiate(ctx context.Context, gen *generation, offer string) 
 // packet, and the round trip is this side's leg to VK alone.
 //
 // ai-generated: the whole function (latency lab).
-func logICEPair(pc *webrtc.PeerConnection) {
-	time.Sleep(3 * time.Second)
+func logICEPair(pc *webrtc.PeerConnection, done <-chan struct{}) {
+	// ai-generated: an old generation does not retain a sleeping stats worker.
+	timer := time.NewTimer(3 * time.Second)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+	case <-done:
+		return
+	}
 	stats := pc.GetStats()
 	for _, report := range stats {
 		pair, ok := report.(webrtc.ICECandidatePairStats)
@@ -415,7 +439,7 @@ func waitOffer(ctx context.Context, signal *signalingClient) notification {
 	for {
 		select {
 		case note := <-signal.Notifications():
-			if note.Notification == "producer-updated" && note.Description != "" {
+			if note.Notification == noteProducer && note.Description != "" {
 				return note
 			}
 		case <-timer.C:
@@ -446,7 +470,7 @@ func (s *Session) run(gen *generation, connection notification) {
 				if id, err := decimalID(note.ParticipantID); err == nil && id != gen.signal.Self() && gen.noteParticipant(id) {
 					gen.subscribeAll()
 				}
-			case "producer-updated":
+			case noteProducer:
 				if s.producerUpdated(gen, note) {
 					return
 				}
@@ -666,11 +690,18 @@ func (gen *generation) participantList() []string {
 // says nothing about the session - Close, a superseding attempt or a giving-up
 // Connect did it deliberately - so it asks nothing. The supervisor coalesces
 // repeats and consults the caller's own policy (SetShouldReconnect).
+// ai-generated: filter retired generations without calling external policy under a lock.
 func (s *Session) reconnectAttempt(gen *generation) {
 	if s.closed.Load() || gen.isDone() {
 		return
 	}
-	s.Request(s.closed.Load(), s.reconnecting.Load())
+	// ai-generated: a current generation may fail during its successful callback.
+	s.mu.Lock()
+	current := s.gen == gen
+	s.mu.Unlock()
+	if current && !gen.isDone() {
+		s.Request(s.closed.Load(), s.reconnecting.Load())
+	}
 }
 
 func (gen *generation) isDone() bool {
@@ -689,14 +720,21 @@ func (gen *generation) stop() {
 	gen.doneOnce.Do(func() { close(gen.done) })
 }
 
+// ai-generated: retain the no-context close wrapper for terminal session shutdown.
 func (gen *generation) teardown() {
+	gen.teardownContext(context.Background())
+}
+
+// ai-generated: cleanup inherits the attempt's remaining signaling budget.
+func (gen *generation) teardownContext(ctx context.Context) {
 	gen.stop()
+	if gen.signal != nil {
+		gen.signal.closeContext(ctx)
+	}
 	if gen.pc != nil {
 		_ = gen.pc.Close()
 	}
-	if gen.signal != nil {
-		gen.signal.close()
-	}
+	gen.workers.Wait() // ai-generated: do not strand old signaling/statistics loops.
 }
 
 // Reconnect asks the session to rejoin the room. Upper layers call it when a
@@ -710,37 +748,14 @@ func (s *Session) Reconnect(reason string) {
 	s.Request(s.closed.Load(), s.reconnecting.Load())
 }
 
-// reconnect tears the current attempt down and joins again. The old attempt
-// goes whole - signaling and the bundled peer connection - so the SFU never
-// carries two guests of ours; then the provider's fresh credentials, then a
-// join from scratch (spec 7.3: state never crosses generations).
+// reconnect reports a completed rejoin after its suppression flag is cleared.
+// ai-generated: keep new-generation failure events enabled during the callback.
 func (s *Session) reconnect(ctx context.Context) error {
-	if s.closed.Load() {
-		return ErrSessionClosed
-	}
-	s.reconnecting.Store(true)
-	defer s.reconnecting.Store(false)
-
-	s.mu.Lock()
-	gen := s.gen
-	s.gen = nil
-	s.mu.Unlock()
-	if gen != nil {
-		gen.teardown()
-	}
-	if s.cfg.Refresh != nil {
-		creds, err := s.cfg.Refresh(ctx)
-		if err != nil {
-			return fmt.Errorf("refresh credentials: %w", err)
-		}
-		s.mu.Lock()
-		s.endpoint = creds.URL
-		s.peerID = creds.Extra["peer_id_hint"]
-		s.iceJSON = creds.Extra["ice_servers"]
-		s.mu.Unlock()
-	}
-	if err := s.Connect(ctx); err != nil {
+	if err := s.rejoin(ctx); err != nil {
 		return err
+	}
+	if s.closed.Load() { // ai-generated: Close may have ended a just-completed join.
+		return ErrSessionClosed
 	}
 	// The transport re-handshakes the tunnel over the rebuilt carrier when
 	// it hears this, the shared contract's successful-reconnect notice.
@@ -807,16 +822,24 @@ func (s *Session) signalEnded(reason string) {
 
 // Close leaves the conversation and frees the peer connection. A closed
 // session refuses every later reconnect request and stops the supervisor.
+// ai-generated: cancel pending joins and wait for their cleanup before returning.
 func (s *Session) Close() error {
 	s.closed.Store(true)
+	s.closeOnce.Do(func() { close(s.closeCh) }) // ai-generated: wake queued joins immediately.
 	s.mu.Lock()
 	gen := s.gen
 	s.gen = nil
+	attempt := s.attempt // ai-generated: cancel and join a pending Connect/Refresh.
 	s.mu.Unlock()
+	if attempt != nil {
+		attempt.cancel()
+	}
 	if gen != nil {
 		gen.teardown()
 	}
-	s.closeOnce.Do(func() { close(s.closeCh) })
+	if attempt != nil {
+		<-attempt.done
+	}
 	return nil
 }
 

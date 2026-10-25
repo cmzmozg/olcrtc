@@ -36,6 +36,7 @@ const (
 	wsHandshakeTimeout = 20 * time.Second
 	commandTimeout     = 15 * time.Second
 	connectionTimeout  = 30 * time.Second
+	signalingCloseWait = time.Second // ai-generated: best-effort hangup must not hold teardown.
 
 	// signalingWriteBuffer bounds one command frame. The SFU parses every
 	// text frame on its own and answers a continuation-split message with
@@ -51,6 +52,7 @@ const (
 	fieldPeerID      = "peerId"
 	noteConnection   = "connection"
 	noteTopology     = "topology-changed"
+	noteProducer     = "producer-updated" // ai-generated: shared offer notification vocabulary.
 	frameTypeError   = "error"
 	reasonHungup     = "HUNGUP"
 	topologyServer   = "SERVER"
@@ -91,9 +93,9 @@ type notification struct {
 // signalingClient is one signaling WebSocket: a single reader goroutine, a
 // serialized writer and pending commands correlated by sequence.
 type signalingClient struct {
-	conn    *websocket.Conn
-	writeMu sync.Mutex
-	pending sync.Map // int64 -> chan notification
+	conn      *websocket.Conn
+	writeGate chan struct{} // ai-generated: cancelable single-writer ownership.
+	pending   sync.Map      // int64 -> chan notification
 
 	sequence int64
 	stamp    int64
@@ -102,10 +104,12 @@ type signalingClient struct {
 	notifications chan notification
 	closed        chan struct{}
 	closeOnce     sync.Once
+	readDone      chan struct{} // ai-generated: join the socket reader on close.
 }
 
 // dialSignaling opens the signaling socket. The endpoint comes from the auth
 // provider's join response and already carries the token and userId query.
+// ai-generated: initialize cancelable writer ownership and reader completion.
 func dialSignaling(ctx context.Context, endpoint string, resolver protect.Lookup) (*signalingClient, error) {
 	target, err := signalingURL(endpoint)
 	if err != nil {
@@ -134,11 +138,13 @@ func dialSignaling(ctx context.Context, endpoint string, resolver protect.Lookup
 	}
 	client := &signalingClient{
 		conn:          conn,
+		writeGate:     make(chan struct{}, 1),
 		self:          selfParticipant(endpoint),
 		notifications: make(chan notification, 16),
 		closed:        make(chan struct{}),
+		readDone:      make(chan struct{}),
 	}
-	go client.readLoop()
+	go client.readLoop() //nolint:contextcheck // the owned socket outlives its dial context
 	return client, nil
 }
 
@@ -183,6 +189,7 @@ func (c *signalingClient) Closed() <-chan struct{} { return c.closed }
 
 // readLoop is the socket's only reader.
 func (c *signalingClient) readLoop() {
+	defer close(c.readDone) // ai-generated: let the owner wait for reader cleanup.
 	defer c.shutdown()
 	for {
 		messageType, data, err := c.conn.ReadMessage()
@@ -229,43 +236,53 @@ func (c *signalingClient) deliver(note notification) {
 	}
 }
 
-// command sends one command frame and waits for its response or error frame.
+// command bounds writer acquisition, socket I/O and the command response.
+// ai-generated: start the common command budget before any blocking operation.
 func (c *signalingClient) command(ctx context.Context, name string, payload any) (notification, error) {
-	c.writeMu.Lock()
-	sequence := c.sequence + 1
-	c.sequence = sequence
-	// The response can arrive before the write returns: the waiter is in
-	// place before the first byte goes out.
-	ch := make(chan notification, 1)
-	c.pending.Store(sequence, ch)
-	defer c.pending.Delete(sequence)
-	raw, err := orderedCommandFrame(name, sequence, payload)
-	if err == nil && len(raw) > signalingWriteBuffer {
-		err = fmt.Errorf("%w: %d bytes", ErrSignalingFrameTooLarge, len(raw))
-	}
-	if err == nil {
-		err = c.conn.WriteMessage(websocket.TextMessage, raw)
-	}
-	c.writeMu.Unlock()
+	ctx, cancel := context.WithTimeout(ctx, commandTimeout)
+	defer cancel()
+	sequence, ch, err := c.sendCommand(ctx, name, payload)
 	if err != nil {
 		return notification{}, fmt.Errorf("vkcalls: signaling write %s: %w", name, err)
 	}
-
-	timer := time.NewTimer(commandTimeout)
-	defer timer.Stop()
+	defer c.pending.Delete(sequence)
 	select {
 	case note := <-ch:
 		if note.Type == frameTypeError {
 			return note, fmt.Errorf("%w: %s", ErrSignalingRejected, name)
 		}
 		return note, nil
-	case <-timer.C:
-		return notification{}, fmt.Errorf("%w: %s", ErrSignalingTimeout, name)
 	case <-c.closed:
 		return notification{}, fmt.Errorf("%w: %s", ErrSignalingClosed, name)
 	case <-ctx.Done():
-		return notification{}, fmt.Errorf("vkcalls: signaling %s: %w", name, ctx.Err())
+		return notification{}, fmt.Errorf("%w: %s: %w", ErrSignalingTimeout, name, ctx.Err())
 	}
+}
+
+// ai-generated: keep sequence assignment and the pending waiter under one writer.
+func (c *signalingClient) sendCommand(ctx context.Context, name string, payload any) (int64, chan notification, error) {
+	if err := c.acquireWrite(ctx); err != nil {
+		return 0, nil, err
+	}
+	defer func() { <-c.writeGate }()
+	sequence := c.sequence + 1
+	c.sequence = sequence
+	// The response can arrive before the write returns: the waiter is in
+	// place before the first byte goes out.
+	ch := make(chan notification, 1)
+	c.pending.Store(sequence, ch)
+	raw, err := orderedCommandFrame(name, sequence, payload)
+	if err == nil && len(raw) > signalingWriteBuffer {
+		err = fmt.Errorf("%w: %d bytes", ErrSignalingFrameTooLarge, len(raw))
+	}
+	if err == nil {
+		err = c.writeLocked(ctx, websocket.TextMessage, raw)
+	}
+	if err != nil {
+		c.pending.Delete(sequence)
+		return 0, nil, err
+	}
+	return sequence, ch, nil
 }
 
 // orderedCommandFrame renders a command frame with command and sequence
@@ -300,20 +317,36 @@ func orderedCommandFrame(name string, sequence int64, payload any) ([]byte, erro
 	return append(out, '}'), nil
 }
 
-// write is the serialized low-level writer used by pong and hangup.
+// write is the bounded low-level writer used by keepalive replies.
+// ai-generated: use a cancelable writer gate and an actual socket deadline.
 func (c *signalingClient) write(messageType int, data []byte) error {
-	c.writeMu.Lock()
-	defer c.writeMu.Unlock()
-	return c.conn.WriteMessage(messageType, data) //nolint:wrapcheck // transport-level failure, caller logs
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	defer cancel()
+	if err := c.acquireWrite(ctx); err != nil {
+		return err
+	}
+	defer func() { <-c.writeGate }()
+	return c.writeLocked(ctx, messageType, data)
 }
 
-// hangup leaves the conversation best-effort before close.
-func (c *signalingClient) hangup() {
+// hangup leaves best-effort; an occupied writer is interrupted by shutdown.
+// ai-generated: never wait for writer ownership during socket teardown.
+func (c *signalingClient) hangup(ctx context.Context) {
+	select {
+	case <-c.closed:
+		return
+	case c.writeGate <- struct{}{}:
+		defer func() { <-c.writeGate }()
+	default:
+		return
+	}
 	raw, err := json.Marshal(map[string]any{"command": "hangup", fieldSequence: c.sequence + 1, "reason": reasonHungup})
 	if err != nil {
 		return
 	}
-	_ = c.write(websocket.TextMessage, raw)
+	ctx, cancel := context.WithTimeout(ctx, signalingCloseWait)
+	defer cancel()
+	_ = c.writeLocked(ctx, websocket.TextMessage, raw)
 }
 
 func (c *signalingClient) shutdown() {
@@ -332,10 +365,10 @@ func (c *signalingClient) shutdown() {
 	})
 }
 
-// close hangs up and tears the socket down.
+// close hangs up and tears the socket down within a short grace period.
+// ai-generated: reuse cancellation-aware cleanup and wait for the reader.
 func (c *signalingClient) close() {
-	c.hangup()
-	c.shutdown()
+	c.closeContext(context.Background())
 }
 
 // awaitJoin waits for this socket's connection notification - the moment
@@ -376,6 +409,7 @@ func (c *signalingClient) drainNotifications() {
 // immediately for a room that opened there, and on the topology-changed
 // notification a third simultaneous participant triggers for a fresh room's
 // DIRECT (two alone never switch; see recruitGuests).
+// ai-generated: preserve the recruit failure that canceled the topology wait.
 func (c *signalingClient) waitServerTopology(ctx context.Context, connection notification) error {
 	waited := false
 	for connection.Conversation == nil || connection.Conversation.Topology != topologyServer {
@@ -397,7 +431,7 @@ func (c *signalingClient) waitServerTopology(ctx context.Context, connection not
 		case <-c.closed:
 			return fmt.Errorf("%w: waiting for SERVER topology", ErrSignalingClosed)
 		case <-ctx.Done():
-			return fmt.Errorf("%w: %w", ErrSignalingNotServer, ctx.Err())
+			return fmt.Errorf("%w: %w", ErrSignalingNotServer, context.Cause(ctx))
 		}
 	}
 	return nil

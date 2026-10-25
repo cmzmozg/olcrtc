@@ -97,6 +97,8 @@ var (
 type vp8Payloader struct {
 	codecs.VP8Payloader
 	next atomic.Uint32 // the picture id the next sample gets
+	// ai-generated: server-owned fragment storage, reused under writeMu.
+	scratch *vp8Scratch
 }
 
 func newVP8Payloader() *vp8Payloader {
@@ -105,8 +107,14 @@ func newVP8Payloader() *vp8Payloader {
 
 // Payload implements rtp.Payloader. pion moves the picture id on only for a
 // sample it cuts into at least one fragment.
+// ai-generated: retain Pion on clients and reuse fragment storage on servers.
 func (v *vp8Payloader) Payload(mtu uint16, payload []byte) [][]byte {
-	out := v.VP8Payloader.Payload(mtu, payload)
+	var out [][]byte
+	if v.scratch == nil {
+		out = v.VP8Payloader.Payload(mtu, payload)
+	} else {
+		out = v.scratch.payload(mtu, payload, v.next.Load(), v.EnablePictureID)
+	}
 	if len(out) > 0 {
 		v.next.Store((v.next.Load() + 1) & 0x7fff)
 	}

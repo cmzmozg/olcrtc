@@ -292,6 +292,7 @@ func New(ctx context.Context, cfg transport.Config) (transport.Transport, error)
 	// ai-generated: the paced track (rtp pacing on the server's track).
 	var local webrtc.TrackLocal = track
 	if tr.serverMode {
+		vp8.scratch = &vp8Scratch{} // ai-generated: enable bounded fragment reuse only on servers.
 		tr.pacer = newRTPPacer()
 		local = &pacedTrack{TrackLocalStaticSample: track, pacer: tr.pacer}
 	}

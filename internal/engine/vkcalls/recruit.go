@@ -29,42 +29,49 @@ const (
 	recruitNextDelay = 3 * time.Second
 )
 
-// recruitGuests joins signaling-only guests until done closes (the main
-// socket saw the switch, or gave up), at most maxRecruits of them. Every
-// guest is closed on the way out: they exist only to raise the room's
-// simultaneous participant count.
-func (s *Session) recruitGuests(ctx context.Context, done <-chan struct{}) {
+// recruitGuests holds at most two guests until SERVER or the join budget ends.
+// ai-generated: report exhausted failures and clean guests before returning.
+func (s *Session) recruitGuests(ctx context.Context) error {
 	if s.cfg.Refresh == nil {
-		// Without a credential issuer there is nothing to join with; the
-		// wait stands on its own.
-		return
+		<-ctx.Done()
+		return nil
 	}
-	var guests []*signalingClient
+	guests := make([]*signalingClient, 0, maxRecruits)
 	defer func() {
 		for _, guest := range guests {
-			guest.close()
+			guest.closeContext(ctx)
 		}
 	}()
 	delay := recruitFirstDelay
+	var lastErr error
 	for range maxRecruits {
-		if !recruitPause(ctx, done, delay) {
-			return
+		if s.recruitDelay > 0 {
+			delay = s.recruitDelay
+		}
+		if !recruitPause(ctx, delay) {
+			return nil
 		}
 		delay = recruitNextDelay
 		guest, err := s.recruitOne(ctx)
 		if err != nil {
+			lastErr = err
 			logger.Debugf("vkcalls: guest recruit: %v", err)
 			continue
 		}
 		guests = append(guests, guest)
 		logger.Debugf("vkcalls: recruited a signaling-only guest to flip the fresh room to SERVER")
 	}
-	<-doneOrContext(ctx, done)
+	if len(guests) == 0 && lastErr != nil {
+		return fmt.Errorf("vkcalls: guest recruits exhausted: %w", lastErr)
+	}
+	<-ctx.Done()
+	return nil
 }
 
 // recruitOne issues a fresh guest's credentials, joins its signaling socket
 // and holds it open - answering keepalives and nothing else: no peer
 // connection, no commands, the participant only counts.
+// ai-generated: canceled guest joins skip graceful writes during cleanup.
 func (s *Session) recruitOne(ctx context.Context) (*signalingClient, error) {
 	creds, err := s.cfg.Refresh(ctx)
 	if err != nil {
@@ -75,39 +82,22 @@ func (s *Session) recruitOne(ctx context.Context) (*signalingClient, error) {
 		return nil, err
 	}
 	if _, err = guest.awaitJoin(ctx); err != nil {
-		guest.close()
+		guest.closeContext(ctx)
 		return nil, fmt.Errorf("guest join: %w", err)
 	}
 	go guest.drainNotifications()
 	return guest, nil
 }
 
-// recruitPause waits d, or ends early when the wait is over.
-func recruitPause(ctx context.Context, done <-chan struct{}, d time.Duration) bool {
+// recruitPause waits d, or ends early when the attempt ends.
+// ai-generated: use the recruit context for both success and failure cleanup.
+func recruitPause(ctx context.Context, d time.Duration) bool {
 	timer := time.NewTimer(d)
 	defer timer.Stop()
 	select {
 	case <-timer.C:
 		return true
-	case <-done:
-		return false
 	case <-ctx.Done():
 		return false
 	}
-}
-
-// doneOrContext is what a recruiter out of guests blocks on.
-func doneOrContext(ctx context.Context, done <-chan struct{}) <-chan struct{} {
-	if ctxDone := ctx.Done(); ctxDone != nil {
-		merged := make(chan struct{})
-		go func() {
-			select {
-			case <-done:
-			case <-ctxDone:
-			}
-			close(merged)
-		}()
-		return merged
-	}
-	return done
 }

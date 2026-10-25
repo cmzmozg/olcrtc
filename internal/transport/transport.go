@@ -91,6 +91,15 @@ type Transport interface {
 	Reconnect(reason string)
 }
 
+// CopyingSender reports whether send calls release their input before returning.
+// When true, Send and every implemented peer, control and lane send must stop
+// referencing the input slice on both success and error. Wrappers must only
+// forward this capability when they preserve that guarantee.
+// ai-generated: optional send payload lifetime contract for bounded scratch reuse.
+type CopyingSender interface {
+	CopiesOnSend() bool
+}
+
 // ControlPlane is implemented by transports that can route control-plane
 // traffic independently of the bulk data plane. When a transport implements
 // this interface, callers should use ControlSend/ControlOnData for the first

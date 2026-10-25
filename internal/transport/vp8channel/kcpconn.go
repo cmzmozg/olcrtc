@@ -549,6 +549,7 @@ const (
 // the paced writer drains a batch a frame, so the tail of a window burst can
 // outwait its RTO in this queue; queueing the resend as well only doubles the
 // wait and the wire cost of what is already on its way.
+// ai-generated: reuse an existing parked sequence's payload while refreshing its header.
 func (c *kcpConn) queuedDuplicate(p []byte) bool {
 	c.queuedMu.Lock()
 	defer c.queuedMu.Unlock()
@@ -584,7 +585,8 @@ func (c *kcpConn) queuedDuplicate(p []byte) bool {
 		if c.parked == nil {
 			c.parked = make(map[uint32]parkedPush)
 		}
-		c.parked[sn] = parkedPush{data: append([]byte(nil), orig...), due: c.sentAt[sn] + c.sentWait()}
+		previous := c.parked[sn]
+		c.parked[sn] = parkedPush{data: append(previous.data[:0], orig...), due: c.sentAt[sn] + c.sentWait()}
 	}
 	return true
 }
