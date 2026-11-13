@@ -22,6 +22,13 @@ SYSTEMD_DIR=${OLCRTC_SYSTEMD_DIR:-/etc/systemd/system}
 # // ai-generated: fail reports an installer error.
 fail() { printf 'Ошибка: %s\n' "$*" >&2; exit 1; }
 
+# // ai-generated: check_port validates the panel port from flags or interactive prompt.
+check_port() {
+    [[ $1 =~ ^[0-9]{1,5}$ ]] || fail 'недопустимый порт'
+    (( 10#$1 > 0 && 10#$1 < 65536 )) || fail 'недопустимый порт'
+    PORT=$((10#$1))
+}
+
 # // ai-generated: ask reads from the terminal, including a curl pipe.
 ask() {
     local answer
@@ -69,9 +76,7 @@ parse() {
         esac
     done
     [[ $DIR =~ ^/[a-zA-Z0-9/_-]+$ && $DIR != / ]] || fail 'недопустимый каталог установки'
-    [[ $PORT =~ ^[0-9]{1,5}$ ]] || fail 'недопустимый порт'
-    (( 10#$PORT > 0 && 10#$PORT < 65536 )) || fail 'недопустимый порт'
-    PORT=$((10#$PORT))
+    check_port "$PORT"
     [[ $IMAGE =~ ^[a-zA-Z0-9][a-zA-Z0-9._/@:-]+$ ]] || fail 'недопустимое имя образа'
 }
 
@@ -352,6 +357,8 @@ wait_panel() {
 install_server() {
     [[ ! -e $DIR/compose.yaml && ! -e $DIR/data/server.yaml && ! -e $DIR/settings.env ]] || fail 'установка уже существует: выберите update'
     [[ -z $(docker ps -aq --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME:-olcrtc-docker}") ]] || fail 'контейнер другой установки уже существует'
+    PORT=$(ask 'HTTPS-порт панели' "$PORT")
+    check_port "$PORT"
     ss -Hltn "sport = :$PORT" | grep -q . && fail "порт $PORT уже занят"
     detect_host
     [[ -n $CERT ]] || issue_certificate
