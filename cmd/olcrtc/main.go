@@ -58,6 +58,9 @@ type loadedConfig struct {
 	failover failoverConfig
 	dataDir  string
 	debug    bool
+	// pprof is the debug pprof listener address; empty disables it.
+	// ai-generated (perf).
+	pprof string
 	// panel is the web panel's settings, its paths resolved against the
 	// config's directory; nil without panel.listen. ai-generated (panel).
 	panel *panel.Options
@@ -142,6 +145,7 @@ func loadConfig(path string) (loadedConfig, error) {
 		failover: failover,
 		dataDir:  resolveDataDir(path, file.Data),
 		debug:    file.Debug,
+		pprof:    file.Pprof.Listen,
 		panel:    panelOptions(path, file.Panel),
 		reload:   func() ([]supervisor.Profile, error) { return loadProfiles(path) },
 	}, nil
@@ -220,6 +224,15 @@ func parseFailoverConfig(f configpkg.Failover) (failoverConfig, error) {
 
 func runWithConfig(cfg loadedConfig) error {
 	configureLogging(cfg.debug)
+
+	// ai-generated (perf): the debug pprof listener, any mode, until exit.
+	if cfg.pprof != "" {
+		closePprof, err := servePprof(cfg.pprof)
+		if err != nil {
+			return err
+		}
+		defer closePprof()
+	}
 
 	scfg := session.ApplyDefaults(cfg.scfg)
 

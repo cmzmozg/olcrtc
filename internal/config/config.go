@@ -82,6 +82,7 @@ type File struct {
 	Data     string    `yaml:"data"`
 	Debug    bool      `yaml:"debug"`
 	Stats    Stats     `yaml:"stats"`
+	Pprof    Pprof     `yaml:"pprof"`
 	Panel    Panel     `yaml:"panel"`
 }
 
@@ -101,6 +102,13 @@ type Panel struct {
 // like data, so it lives on the file rather than on a profile.
 type Stats struct {
 	Listen string `yaml:"listen"` // loopback host:port serving GET /stats; empty disables
+}
+
+// Pprof configures the process-wide debug pprof listener, the net/http/pprof
+// handlers under /debug/pprof. It is for profiling a live process, local or
+// over SSH; empty disables it. ai-generated (perf).
+type Pprof struct {
+	Listen string `yaml:"listen"` // host:port serving /debug/pprof; empty disables
 }
 
 // Profile is a failover entry that overrides top-level runtime fields.
