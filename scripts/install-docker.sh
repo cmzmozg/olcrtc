@@ -14,6 +14,7 @@ PUBLIC_IP=
 CERT=
 KEY=
 PORT=8884
+BIND_IP=0.0.0.0
 WEBROOT=
 EMAIL=
 MANAGED=0
@@ -27,6 +28,18 @@ check_port() {
     [[ $1 =~ ^[0-9]{1,5}$ ]] || fail 'недопустимый порт'
     (( 10#$1 > 0 && 10#$1 < 65536 )) || fail 'недопустимый порт'
     PORT=$((10#$1))
+}
+
+# // ai-generated: local_ips lists IPv4 addresses configured on this host.
+local_ips() {
+    command -v ip >/dev/null || return 0
+    ip -4 -o addr show scope global 2>/dev/null | awk '{sub(/\/.*/, "", $4); print $4}' | sort -u
+}
+
+# // ai-generated: is_local tells whether the address is bindable here (0.0.0.0 always is).
+is_local() {
+    [[ $1 == 0.0.0.0 ]] && return 0
+    local_ips | grep -Fxq "$1"
 }
 
 # // ai-generated: ask reads from the terminal, including a curl pipe.
@@ -47,6 +60,7 @@ usage() {
   --host HOST                домен или IPv4 панели (обычно определяется сам)
   --ip IPV4                  публичный IPv4 VPS (обычно определяется сам)
   --port PORT                HTTPS-порт панели (8884)
+  --bind-ip IP               адрес узла для слушания панели (0.0.0.0 - все)
   --cert FILE --key FILE     существующий сертификат и ключ
   --webroot DIR              webroot для ACME, если порт 80 занят
   --email EMAIL              адрес аккаунта Let's Encrypt
@@ -65,6 +79,7 @@ parse() {
             --host) HOST=${2:?}; shift 2 ;;
             --ip) PUBLIC_IP=${2:?}; shift 2 ;;
             --port) PORT=${2:?}; shift 2 ;;
+            --bind-ip) BIND_IP=${2:?}; shift 2 ;;
             --cert) CERT=${2:?}; shift 2 ;;
             --key) KEY=${2:?}; shift 2 ;;
             --webroot) WEBROOT=${2:?}; shift 2 ;;
@@ -77,6 +92,7 @@ parse() {
     done
     [[ $DIR =~ ^/[a-zA-Z0-9/_-]+$ && $DIR != / ]] || fail 'недопустимый каталог установки'
     check_port "$PORT"
+    [[ $BIND_IP == 0.0.0.0 ]] || ipv4 "$BIND_IP" || fail 'недопустимый --bind-ip (нужен IPv4 или 0.0.0.0)'
     [[ $IMAGE =~ ^[a-zA-Z0-9][a-zA-Z0-9._/@:-]+$ ]] || fail 'недопустимое имя образа'
 }
 
@@ -111,10 +127,13 @@ ipv4() {
     (( 10#$a < 256 && 10#$b < 256 && 10#$c < 256 && 10#$d < 256 ))
 }
 
-# // ai-generated: resolves_here verifies DNS A records against the public IPv4.
+# // ai-generated: resolves_here verifies DNS records against this node's addresses (multi-IP VPS).
 resolves_here() {
-    if ipv4 "$1"; then [[ $1 == "$PUBLIC_IP" ]]; return; fi
-    getent ahostsv4 "$1" | awk '{print $1}' | sort -u | grep -Fxq "$PUBLIC_IP"
+    if ipv4 "$1"; then
+        [[ $1 == "$PUBLIC_IP" ]] || is_local "$1"
+        return
+    fi
+    getent ahostsv4 "$1" | awk '{print $1}' | sort -u | grep -Fxqf <(local_ips; printf '%s\n' "$PUBLIC_IP")
 }
 
 # // ai-generated: certificate_host selects a certificate SAN that resolves here.
@@ -290,7 +309,7 @@ vp8:
   batch_size: 64
   olt_disabled: true
 panel:
-  listen: "0.0.0.0:$PORT"
+  listen: "$BIND_IP:$PORT"
   path: "$path"
   password: "$password"
   store: panel.json
@@ -306,7 +325,7 @@ EOF
 save_settings() {
     local name
     : >"$DIR/settings.env"
-    for name in HOST CERT KEY WEBROOT MANAGED CERTBOT_IMAGE; do
+    for name in BIND_IP HOST CERT KEY WEBROOT MANAGED CERTBOT_IMAGE; do
         printf '%s=%q\n' "$name" "${!name}" >>"$DIR/settings.env"
     done
     [[ -f ${BASH_SOURCE[0]} ]] || fail 'сначала скачайте скрипт в файл'
@@ -346,7 +365,7 @@ EOF
 wait_panel() {
     local i
     for (( i=0; i<30; i++ )); do
-        if curl -kfsS --max-time 2 "https://127.0.0.1:$PORT/$(sed -n 's/^  path: "\(.*\)"/\1/p' "$DIR/data/server.yaml")/" >/dev/null 2>&1; then return; fi
+        if curl -kfsS --max-time 2 "https://$BIND_IP:$PORT/$(sed -n 's/^  path: "\(.*\)"/\1/p' "$DIR/data/server.yaml")/" >/dev/null 2>&1; then return; fi
         sleep 1
     done
     compose logs --tail 30
@@ -359,7 +378,13 @@ install_server() {
     [[ -z $(docker ps -aq --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME:-olcrtc-docker}") ]] || fail 'контейнер другой установки уже существует'
     PORT=$(ask 'HTTPS-порт панели' "$PORT")
     check_port "$PORT"
+    local host_ips
+    host_ips=$(local_ips | tr '\n' ' ')
+    printf 'Адреса узла: %s\n' "${host_ips:-не найдены, будет 0.0.0.0}"
+    BIND_IP=$(ask 'IP слушания панели и сервера (0.0.0.0 - все адреса)' "$BIND_IP")
+    is_local "$BIND_IP" || fail "$BIND_IP не найден на интерфейсах узла (0.0.0.0 - слушать все)"
     ss -Hltn "sport = :$PORT" | grep -q . && fail "порт $PORT уже занят"
+    [[ -z $HOST && $BIND_IP != 0.0.0.0 ]] && HOST=$BIND_IP
     detect_host
     [[ -n $CERT ]] || issue_certificate
     install -d -m 700 -o root -g root "$DIR"
@@ -381,9 +406,11 @@ install_server() {
 # // ai-generated: update_server pulls first and restores the old image on failure.
 update_server() {
     [[ -f $DIR/compose.yaml ]] || fail 'установка не найдена'
-    local old
+    local old listen
     old=$(docker inspect --format '{{.Image}}' "$(compose ps -aq server)")
-    PORT=$(sed -n 's/^  listen: "0.0.0.0:\([0-9]*\)"/\1/p' "$DIR/data/server.yaml")
+    listen=$(sed -n 's/^  listen: "\(.*\)"/\1/p' "$DIR/data/server.yaml")
+    BIND_IP=${listen%:*}
+    PORT=${listen##*:}
     cp -p "$DIR/compose.yaml" "$DIR/compose.yaml.previous"
     write_compose
     if (( PULL )) && ! compose pull; then

@@ -26,6 +26,7 @@ ROOM=""
 FPS="60"
 DNS="1.1.1.1:53"
 PANEL_PORT="8884"
+PANEL_IP=""
 PANEL_PATH=""
 PANEL_PASS=""
 PANEL_PUBLIC=0
@@ -57,6 +58,7 @@ usage() {
   --fps <n>              кадров в секунду vp8channel (60)
   --dns <host:port>      DNS сервера (1.1.1.1:53)
   --panel-port <n>       порт панели (8884)
+  --panel-ip <ip>        IPv4 узла для слушания панели (127.0.0.1; с --panel-public 0.0.0.0)
   --panel-path <str>     секретный путь панели (по умолчанию случайный)
   --panel-password <pw>  пароль панели (по умолчанию случайный)
   --panel-public         слушать 0.0.0.0, нужны --cert и --key
@@ -77,6 +79,7 @@ while [ $# -gt 0 ]; do
         --fps)            FPS="${2:?}"; shift 2 ;;
         --dns)            DNS="${2:?}"; shift 2 ;;
         --panel-port)     PANEL_PORT="${2:?}"; shift 2 ;;
+        --panel-ip)       PANEL_IP="${2:?}"; shift 2 ;;
         --panel-path)     PANEL_PATH="${2:?}"; shift 2 ;;
         --panel-password) PANEL_PASS="${2:?}"; shift 2 ;;
         --panel-public)   PANEL_PUBLIC=1; shift ;;
@@ -93,6 +96,13 @@ done
 
 [ "$(id -u)" -eq 0 ] || die "нужны права root: sudo ./install-server.sh"
 command -v systemctl >/dev/null 2>&1 || die "скрипт рассчитан на systemd"
+
+# Нелокальный --panel-ip требует TLS, как и --panel-public.
+PANEL_EXPOSED=0
+if [ -n "$PANEL_IP" ]; then
+    [[ "$PANEL_IP" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || die "--panel-ip: нужен IPv4"
+    case "$PANEL_IP" in 127.*) ;; *) PANEL_EXPOSED=1 ;; esac
+fi
 
 # ── Помощники ────────────────────────────────────────────────────────────
 
@@ -160,6 +170,7 @@ EOF
 write_config() {
     local listen="127.0.0.1:$PANEL_PORT"
     [ "$PANEL_PUBLIC" -eq 0 ] || listen="0.0.0.0:$PANEL_PORT"
+    [ -z "$PANEL_IP" ] || listen="$PANEL_IP:$PANEL_PORT"
     {
         printf 'mode: srv\nauth:\n  provider: %s\n' "$PROVIDER"
         [ -z "$ROOM" ] || printf 'room:\n  id: "%s"\n' "$ROOM"
@@ -187,14 +198,15 @@ healthy() {
         now=$(systemctl show -p NRestarts --value "$NAME")
         [ "$now" = "$before" ] || { warn "$NAME перезапускался ($before -> $now)"; return 1; }
     done
-    local path port scheme="http"
+    local path host port scheme="http"
     path=$(conf_value path)
+    host=$(conf_value listen | sed 's/:.*//')
     port=$(conf_value listen | sed 's/.*://')
     [ -n "$path" ] || return 0
     [ -z "$(conf_value cert)" ] || scheme="https"
     command -v curl >/dev/null 2>&1 || return 0
-    curl -fsSk -o /dev/null --max-time 5 "$scheme://127.0.0.1:$port/$path/" ||
-        { warn "панель не отвечает на $port"; return 1; }
+    curl -fsSk -o /dev/null --max-time 5 "$scheme://$host:$port/$path/" ||
+        { warn "панель не отвечает на $host:$port"; return 1; }
 }
 
 summary() {
@@ -208,8 +220,10 @@ summary() {
         say "панель слушает только loopback; откройте SSH-туннель со своего компьютера:"
         say "  ssh -L $port:127.0.0.1:$port root@<адрес сервера>"
         say "и зайдите на http://127.0.0.1:$port/$path/"
-    else
+    elif [ "${listen%:*}" = "0.0.0.0" ]; then
         say "https://<адрес сервера>:$port/$path/"
+    else
+        say "https://$listen/ (панель слушает только этот адрес)"
     fi
     say "пароль: в $CONF (panel.password)"
     [ -z "${NEW_PASS:-}" ] || say "пароль: $NEW_PASS"
@@ -272,8 +286,8 @@ say "$BIN"
 if [ -f "$CONF" ]; then
     say "конфиг уже есть, не трогаю: $CONF"
 else
-    if [ "$PANEL_PUBLIC" -eq 1 ] && { [ -z "$CERT" ] || [ -z "$KEY" ]; }; then
-        die "публичной панели нужны --cert и --key"
+    if { [ "$PANEL_PUBLIC" -eq 1 ] || [ "$PANEL_EXPOSED" -eq 1 ]; } && { [ -z "$CERT" ] || [ -z "$KEY" ]; }; then
+        die "панели на нелокальном адресе нужны --cert и --key"
     fi
     [ -n "$PANEL_PATH" ] || PANEL_PATH="$(random_hex 12)"
     if [ -z "$PANEL_PASS" ]; then
@@ -306,7 +320,7 @@ systemctl restart "$NAME"
 healthy || die "служба не поднялась: journalctl -u $NAME -n 50"
 say "$NAME работает"
 
-if [ "$PANEL_PUBLIC" -eq 1 ]; then
+if [ "$PANEL_PUBLIC" -eq 1 ] || [ "$PANEL_EXPOSED" -eq 1 ]; then
     open_port "$PANEL_PORT"
     say "порт $PANEL_PORT открыт"
 fi
