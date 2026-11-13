@@ -1457,25 +1457,49 @@ func TestFrequentReconnectsStillAllowNewSOCKSConnections(t *testing.T) {
 
 	for i := range 5 {
 		rt.room.triggerReconnect()
-		conn := eventuallyConnectViaSOCKS(t, rt.socksAddr, echoAddr)
 		payload := fmt.Appendf(nil, "after-reconnect-%d\n", i)
-		if _, err := conn.Write(payload); err != nil {
-			_ = conn.Close()
-			t.Fatalf("write after reconnect %d: %v", i, err)
-		}
-		if err := conn.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
-			_ = conn.Close()
-			t.Fatalf("set deadline after reconnect %d: %v", i, err)
-		}
-		line, err := bufio.NewReader(conn).ReadBytes('\n')
-		_ = conn.Close()
+		line, err := echoAfterReconnect(t, rt, echoAddr, payload)
 		if err != nil {
-			t.Fatalf("read after reconnect %d: %v", i, err)
+			t.Fatalf("echo after reconnect %d: %v", i, err)
 		}
 		if !bytes.Equal(line, payload) {
 			t.Fatalf("echo after reconnect %d = %q, want %q", i, line, payload)
 		}
 	}
+}
+
+// ai-generated: the retry helpers (echoAfterReconnect, echoOnceViaSOCKS):
+// a reconnect can tear down a stream SOCKS has already accepted, so what
+// dies before its echo is redialed. The test is about new connections
+// surviving reconnects, not about one surviving a teardown it raced. A
+// wrong echo is not retried: wrong data is a bug, not a race.
+func echoAfterReconnect(t *testing.T, rt *tunnelRuntime, echoAddr string, payload []byte) ([]byte, error) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		line, err := echoOnceViaSOCKS(t, rt, echoAddr, payload)
+		if err == nil {
+			return line, nil
+		}
+		lastErr = err
+		time.Sleep(250 * time.Millisecond)
+	}
+	return nil, lastErr
+}
+
+// echoOnceViaSOCKS dials one fresh SOCKS connection and echoes one line
+// through it.
+func echoOnceViaSOCKS(t *testing.T, rt *tunnelRuntime, echoAddr string, payload []byte) ([]byte, error) {
+	conn := eventuallyConnectViaSOCKS(t, rt.socksAddr, echoAddr)
+	defer func() { _ = conn.Close() }()
+	if _, err := conn.Write(payload); err != nil {
+		return nil, err
+	}
+	if err := conn.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
+		return nil, err
+	}
+	return bufio.NewReader(conn).ReadBytes('\n')
 }
 
 func TestSupervisorFailoverProfilesReachWorkingSOCKS(t *testing.T) {
