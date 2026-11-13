@@ -153,7 +153,9 @@ jobs:
           for name in GATE_TELEMOST_ROOMS GATE_WBSTREAM_ROOMS GATE_WBSTREAM_TOKEN GATE_VKCALLS_ROOMS; do
             if [ -z "${!name}" ]; then
               missing=1
-              [ "$FORK_PR" = true ] || echo "::error title=Gate secret not set::$name is not set. Add it under Settings > Secrets and variables > Actions."
+              # A notice, not an error: absent secrets are the skip path this
+              # step exists for, and an annotation would paint the run red.
+              [ "$FORK_PR" = true ] || echo "::notice title=Gate secret not set::$name is not set; the live gate is skipped until it is added."
             fi
           done
           if [ "$missing" -eq 1 ]; then

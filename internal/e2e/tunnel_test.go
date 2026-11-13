@@ -1491,6 +1491,7 @@ func echoAfterReconnect(t *testing.T, rt *tunnelRuntime, echoAddr string, payloa
 // echoOnceViaSOCKS dials one fresh SOCKS connection and echoes one line
 // through it.
 func echoOnceViaSOCKS(t *testing.T, rt *tunnelRuntime, echoAddr string, payload []byte) ([]byte, error) {
+	t.Helper()
 	conn := eventuallyConnectViaSOCKS(t, rt.socksAddr, echoAddr)
 	defer func() { _ = conn.Close() }()
 	if _, err := conn.Write(payload); err != nil {
