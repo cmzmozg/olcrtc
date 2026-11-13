@@ -204,6 +204,30 @@ detect_host() {
     fi
 }
 
+# // ai-generated: challenge_ip returns the local IPv4 that the ACME identifier points at.
+challenge_ip() {
+    if ipv4 "$1"; then printf '%s\n' "$1"; return; fi
+    local a
+    while read -r a; do
+        if [[ $a == "$PUBLIC_IP" ]] || is_local "$a"; then printf '%s\n' "$a"; return; fi
+    done < <(getent ahostsv4 "$1" | awk '{print $1}' | sort -u)
+    return 1
+}
+
+# // ai-generated: port80_busy tells whether :80 is taken at an address, wildcards count.
+port80_busy() {
+    local addr host
+    while read -r addr; do
+        host=${addr%:*}
+        host=${host#\[}; host=${host%\]}
+        case "$host" in
+            ""|0.0.0.0|\*|::) return 0 ;;
+            "$1") return 0 ;;
+        esac
+    done < <(ss -Hltn 'sport = :80' | awk '{print $4}')
+    return 1
+}
+
 # // ai-generated: certbot runs a current ACME client without changing host certbot.
 certbot() {
     local mounts=()
@@ -216,13 +240,18 @@ certbot() {
 issue_certificate() {
     local identifier=(-d "$HOST") challenge=(--standalone) account=(--register-unsafely-without-email)
     if ipv4 "$HOST"; then identifier=(--ip-address "$HOST" --preferred-profile shortlived); fi
-    if [[ -z $WEBROOT ]] && ss -Hltn 'sport = :80' | grep -q .; then
+    local cip
+    cip=$(challenge_ip "$HOST") || cip=""
+    if [[ -z $WEBROOT ]] && port80_busy "${cip:-0.0.0.0}"; then
         WEBROOT=$(ask 'Порт 80 занят. Укажите webroot для /.well-known/acme-challenge' '')
         [[ -n $WEBROOT ]] || fail 'для выпуска нужен свободный порт 80 или --webroot'
     fi
     if [[ -n $WEBROOT ]]; then
         [[ $WEBROOT =~ ^/[a-zA-Z0-9/_.-]+$ && -d $WEBROOT ]] || fail 'недопустимый webroot'
         challenge=(--webroot --webroot-path "$WEBROOT")
+    elif [[ -n $cip ]]; then
+        challenge=(--standalone --http-01-address "$cip")
+        printf 'Проверка HTTP-01 на %s:80 (занятость порта на других адресах узла не мешает).\n' "$cip"
     fi
     EMAIL=$(ask "Email аккаунта Let's Encrypt (необязательно)" "$EMAIL")
     if [[ -n $EMAIL ]]; then account=(--email "$EMAIL"); fi
