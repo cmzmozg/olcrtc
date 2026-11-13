@@ -119,6 +119,7 @@ jobs:
     timeout-minutes: 15
     outputs:
       live: ${{ steps.scope.outputs.live }}
+      secrets: ${{ steps.secrets.outputs.present }}
     defaults:
       run:
         shell: bash
@@ -129,6 +130,42 @@ jobs:
           # The whole history, so the step below can see what this branch
           # changed against proofkit.
           fetch-depth: 0
+
+      # The live gate joins real rooms from the secrets; a repository without
+      # them runs it never, not on every push red. The same skip a fork's pull
+      # request gets, just for a different reason: setting the secrets brings
+      # the gate back on the next push, nothing to edit here. A fork's pull
+      # request has no secrets by GitHub's rule, so it stays quiet there: the
+      # notice step below already says why.
+      #
+      # ai-generated: the whole step.
+      - name: Check the gate secrets
+        id: secrets
+        env:
+          FORK_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+          GATE_TELEMOST_ROOMS: ${{ secrets.GATE_TELEMOST_ROOMS }}
+          GATE_WBSTREAM_ROOMS: ${{ secrets.GATE_WBSTREAM_ROOMS }}
+          GATE_WBSTREAM_TOKEN: ${{ secrets.GATE_WBSTREAM_TOKEN }}
+          GATE_VKCALLS_ROOMS: ${{ secrets.GATE_VKCALLS_ROOMS }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in GATE_TELEMOST_ROOMS GATE_WBSTREAM_ROOMS GATE_WBSTREAM_TOKEN GATE_VKCALLS_ROOMS; do
+            if [ -z "${!name}" ]; then
+              missing=1
+              [ "$FORK_PR" = true ] || echo "::error title=Gate secret not set::$name is not set. Add it under Settings > Secrets and variables > Actions."
+            fi
+          done
+          if [ "$missing" -eq 1 ]; then
+            echo 'present=false' >> "$GITHUB_OUTPUT"
+            if [ "$FORK_PR" != true ]; then
+              note='The live gate did not run: the room pools or the WB token are not set. Add GATE_TELEMOST_ROOMS, GATE_WBSTREAM_ROOMS, GATE_WBSTREAM_TOKEN and GATE_VKCALLS_ROOMS under Settings > Secrets and variables > Actions; the gate starts on the next push.'
+              echo "::notice title=Gate not run::$note"
+              printf '\n%s\n' "$note" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          else
+            echo 'present=true' >> "$GITHUB_OUTPUT"
+          fi
 
       # The live gate holds the real rooms for most of an hour and only one
       # runs at a time across the repository, so a branch that cannot change
@@ -227,9 +264,10 @@ jobs:
     # green: here every planned cell ends pass or fail.
     #
     # Secrets reach go test through step env only, never argv or script text
-    # (amendment A7). GATE_TELEMOST_ROOMS and GATE_WBSTREAM_ROOMS (pools of
-    # room ids or URLs, comma-separated) and GATE_WBSTREAM_TOKEN are
-    # required; GATE_JITSI_HOSTS is optional, empty means the instance list.
+    # (amendment A7). GATE_TELEMOST_ROOMS, GATE_WBSTREAM_ROOMS,
+    # GATE_VKCALLS_ROOMS (pools of room ids or URLs, comma-separated) and
+    # GATE_WBSTREAM_TOKEN are required; GATE_JITSI_HOSTS is optional, empty
+    # means the instance list.
     # Jitsi and SaluteJazz rooms are made fresh per pair and need no secret.
     #
     # Fork rule: GitHub gives a pull request from a fork no secrets, so this
@@ -248,11 +286,14 @@ jobs:
     # minutes those jobs take, and a job skipped because a dependency failed
     # is reported as skipped, not as a pass.
     needs: [gate-plan, hygiene, lint, test]
-    # The fork rule, and gate-plan's verdict on whether this branch can change
-    # what a real relay sees (see there).
+    # The fork rule, gate-plan's verdict on whether this branch can change
+    # what a real relay sees (see there), and the secrets rule: a repository
+    # that set no room pools and no WB token skips the gate the way a fork's
+    # pull request does, instead of failing it on every push.
     if: >-
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
       && needs.gate-plan.outputs.live == 'true'
+      && needs.gate-plan.outputs.secrets == 'true'
     runs-on: ubuntu-latest
     # The job holds the secrets: its token only reads the repository, and
     # checkout leaves no credential in .git/config for the test's children.
@@ -295,7 +336,7 @@ jobs:
           while IFS= read -r e; do
             mask "$e"
             mask "$(sed -E 's|^[A-Za-z]+://||; s|[?#].*||; s|/+$||; s|.*/||' <<<"$e")"
-          done < <(entries "$GATE_TELEMOST_ROOMS,$GATE_WBSTREAM_ROOMS")
+          done < <(entries "$GATE_TELEMOST_ROOMS,$GATE_WBSTREAM_ROOMS,$GATE_VKCALLS_ROOMS")
           # A Jitsi host as given, and bare, as room URLs and errors carry it.
           while IFS= read -r e; do
             mask "$e"
@@ -315,6 +356,7 @@ jobs:
           require GATE_TELEMOST_ROOMS "a comma-separated pool of Telemost room ids or URLs"
           require GATE_WBSTREAM_ROOMS "a comma-separated pool of WB Stream room ids or URLs"
           require GATE_WBSTREAM_TOKEN "the WB Stream account token the local server joins with (WB refuses a guest as the first participant of an idle room)"
+          require GATE_VKCALLS_ROOMS "a comma-separated pool of VK Calls join links"
 
       - uses: actions/checkout@v7
         with:
